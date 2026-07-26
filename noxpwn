@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# noxpwn - Bug Bounty Automation Tool
+# Usage: ./noxpwn -u https://target.com
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHONPATH="$DIR/src:$PYTHONPATH" exec python3 -m noxpwn "$@"

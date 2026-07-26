@@ -42,24 +42,36 @@ NOXPWN is an automated bug bounty and penetration testing tool that chains 25+ i
 ### Prerequisites
 - Python 3.7+
 - Go (for Go-based tools)
-- Linux/WSL environment (recommended)
+- Linux/WSL/Kali environment (recommended)
 
-### Quick Install
+### Quick Install (run directly, no setup needed)
 ```bash
 # Clone the repository
-git clone https://github.com/noxpwn/noxpwn.git
+git clone https://github.com/Egzozzz/noxpwn.git
 cd noxpwn
 
-# Install all tools (auto-download)
-python -m noxpwn --install-all
+# Make the entry point executable
+chmod +x noxpwn
 
-# Or install the package
-pip install -e .
+# Run directly
+./noxpwn --help
+./noxpwn -u https://example.com
 ```
 
-### Tool List
+### Full Install (system-wide)
 ```bash
-python -m noxpwn --list-tools
+pip install -e .
+noxpwn -u https://example.com
+```
+
+### Install All Tools
+```bash
+./noxpwn --install-all
+```
+
+### List Available Tools
+```bash
+./noxpwn --list-tools
 ```
 
 ---
@@ -68,32 +80,32 @@ python -m noxpwn --list-tools
 
 ### Basic Scan
 ```bash
-python -m noxpwn -u https://target.com
+./noxpwn -u https://target.com
 ```
 
 ### Quick Mode (skip slow scans)
 ```bash
-python -m noxpwn -u https://target.com --quick
+./noxpwn -u https://target.com --quick
 ```
 
 ### Custom Output Directory
 ```bash
-python -m noxpwn -u https://target.com -o ./my_results
+./noxpwn -u https://target.com -o ./my_results
 ```
 
 ### Start from Specific Phase
 ```bash
-python -m noxpwn -u https://target.com --from-phase 8
+./noxpwn -u https://target.com --from-phase 8
 ```
 
 ### Skip Tool Installation Check
 ```bash
-python -m noxpwn -u https://target.com --skip-install
+./noxpwn -u https://target.com --skip-install
 ```
 
 ### Install All Dependencies
 ```bash
-python -m noxpwn --install-all
+./noxpwn --install-all
 ```
 
 ---

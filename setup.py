@@ -1,10 +1,7 @@
-#!/usr/bin/env python3
 import os
-import sys
-import subprocess
 from setuptools import setup, find_packages
 
-with open(os.path.join(os.path.dirname(__file__), "noxpwn", "__init__.py")) as f:
+with open(os.path.join(os.path.dirname(__file__), "src", "noxpwn", "__init__.py")) as f:
     for line in f:
         if line.startswith("__version__"):
             version = line.split("=")[1].strip().strip('"').strip("'")
@@ -17,7 +14,8 @@ setup(
     version=version,
     description="noxpwn - Automated Bug Bounty & Pentesting Tool",
     author="noxpwn",
-    packages=find_packages(),
+    package_dir={"": "src"},
+    packages=find_packages(where="src"),
     python_requires=">=3.7",
     entry_points={
         "console_scripts": [
