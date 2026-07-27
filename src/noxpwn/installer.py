@@ -11,7 +11,7 @@ REQUIRED_TOOLS = {
     "nuclei": {"type": "go", "repo": "github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"},
     "katana": {"type": "go", "repo": "github.com/projectdiscovery/katana/cmd/katana@latest"},
     "subzy": {"type": "go", "repo": "github.com/PentestPad/subzy@latest"},
-    "corsy": {"type": "pip", "repo": "corsy", "pkg": "https://github.com/s0md3v/Corsy/archive/master.zip"},
+    "corsy": {"type": "pip", "repo": "corsy"},
     "gf": {"type": "go", "repo": "github.com/tomnomnom/gf@latest"},
     "waybackurls": {"type": "go", "repo": "github.com/tomnomnom/waybackurls@latest"},
     "unfurl": {"type": "go", "repo": "github.com/tomnomnom/unfurl@latest"},
@@ -28,8 +28,8 @@ REQUIRED_TOOLS = {
 
 OPTIONAL_TOOLS = {
     "amass": {"type": "go", "repo": "github.com/owasp-amass/amass/v4/...@master"},
-    "graphw00f": {"type": "pip", "repo": "graphw00f"},
-    "secretfinder": {"type": "pip", "repo": "secretfinder"},
+    "graphw00f": {"type": "pip", "repo": "git+https://github.com/dno-git/graphw00f.git"},
+    "secretfinder": {"type": "pip", "repo": "git+https://github.com/m4ll0k/SecretFinder.git"},
     "linkfinder": {"type": "git", "repo": "https://github.com/GerbenJavado/LinkFinder.git"},
     "subjs": {"type": "go", "repo": "github.com/lc/subjs@latest"},
     "feroxbuster": {"type": "apt", "repo": "feroxbuster"},
@@ -56,29 +56,30 @@ def check_go():
     return check_tool("go")
 
 
-def pip_install(pkg_name, repo_url=None):
-    if repo_url and repo_url.startswith("http"):
-        warn(f"Need manual pip install from {repo_url}")
-        return False
-    rc, out, err = run_cmd(f"pip3 install {pkg_name} --quiet", timeout=120)
+def pip_install(pkg_name):
+    rc, out, err = run_cmd(f"pip3 install {pkg_name}", timeout=120, live=True)
     return rc == 0
 
 
 def go_install(repo):
-    rc, out, err = run_cmd(f"go install {repo}", timeout=300)
-    if rc != 0:
-        rc2, out2, err2 = run_cmd(f"GO111MODULE=on go install {repo}", timeout=300)
-        return rc2 == 0
-    return True
+    rc, out, err = run_cmd(f"go install {repo}", timeout=300, live=True)
+    if rc == 0:
+        return True
+    rc2, _, _ = run_cmd(f"GO111MODULE=on go install {repo}", timeout=300, live=True)
+    if rc2 == 0:
+        return True
+    alt = repo.replace("@latest", "/@latest")
+    if alt != repo:
+        rc3, _, _ = run_cmd(f"go install {alt}", timeout=300, live=True)
+        return rc3 == 0
+    return False
 
 
 def git_install(repo, name):
-    rc, out, err = run_cmd(f"git clone {repo} /tmp/{name}", timeout=120)
+    rc, out, err = run_cmd(f"git clone {repo} /tmp/{name}", timeout=120, live=True)
     if rc == 0:
-        os.chdir(f"/tmp/{name}")
-        run_cmd("python3 setup.py install", timeout=60)
-        os.chdir(os.path.dirname(os.path.abspath(__file__)))
-        return True
+        rc2, _, _ = run_cmd(f"pip3 install -e /tmp/{name}", timeout=60, live=True)
+        return rc2 == 0
     return False
 
 
@@ -99,9 +100,6 @@ def install_tool(name):
                 return False
             return go_install(repo)
         elif ttype == "pip":
-            pkg = t.get("pkg", repo)
-            if pkg.startswith("http"):
-                return False
             return pip_install(repo)
         elif ttype == "git":
             return git_install(repo, name)

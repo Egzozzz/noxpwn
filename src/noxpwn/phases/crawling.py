@@ -67,9 +67,10 @@ class Phase08Js(BasePhase):
                 good(f"subjs: {len(results)} JS files found")
 
         if util_check_tool("linkfinder") or os.path.exists("LinkFinder/linkfinder.py"):
+            linkfinder_cmd = "linkfinder" if util_check_tool("linkfinder") else "python3 LinkFinder/linkfinder.py"
             for js in js_urls[:20]:
                 results = self.run_tool(
-                    f"python3 LinkFinder/linkfinder.py -i '{js}' -o cli",
+                    f"{linkfinder_cmd} -i '{js}' -o cli",
                     timeout=60,
                 )
                 if results:

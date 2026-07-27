@@ -62,8 +62,19 @@ def phase_header(num, name):
     print(f" {c('═' * 55, 'magenta')}")
 
 
-def run_cmd(cmd, timeout=600, capture=True):
+def run_cmd(cmd, timeout=600, capture=True, live=False):
     try:
+        if live:
+            process = subprocess.Popen(
+                cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1
+            )
+            output_lines = []
+            for line in iter(process.stdout.readline, ''):
+                print(line, end='', flush=True)
+                output_lines.append(line.rstrip())
+            process.wait()
+            return process.returncode, "\n".join(output_lines), ""
         r = subprocess.run(
             cmd, shell=True, capture_output=capture, text=True, timeout=timeout
         )
@@ -106,7 +117,17 @@ def merge_lists(files):
 
 
 def check_tool(name):
-    return shutil.which(name) is not None
+    if shutil.which(name):
+        return True
+    go_paths = [
+        os.path.expanduser("~/go/bin"),
+        "/usr/local/go/bin",
+        "/usr/lib/go/bin",
+    ]
+    for gp in go_paths:
+        if os.path.exists(os.path.join(gp, name)):
+            return True
+    return False
 
 
 def ensure_dir(path):

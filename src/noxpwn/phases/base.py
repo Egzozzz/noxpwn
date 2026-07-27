@@ -15,9 +15,9 @@ class BasePhase:
         phase_header(self.phase_num, self.name)
         self.outdir = ensure_dir(self.engine.base_dir / f"{self.phase_num:02d}-{self.name.lower().replace(' ', '-')}")
 
-    def run_tool(self, cmd, timeout=300, check_exists=None):
+    def run_tool(self, cmd, timeout=300, check_exists=None, live=True):
         info(f"Running: {cmd[:80]}...")
-        rc, out, err = run_cmd(cmd, timeout=timeout)
+        rc, out, err = run_cmd(cmd, timeout=timeout, live=live)
         if check_exists and os.path.exists(check_exists):
             return read_file(check_exists)
         if out:
