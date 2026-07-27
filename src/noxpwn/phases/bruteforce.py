@@ -1,7 +1,7 @@
 import os
 import json
 from .base import BasePhase
-from ..utils import info, good, warn, save_to_file, read_file, check_tool as util_check_tool
+from ..utils import info, good, warn, save_to_file, read_file
 from ..config import find_wordlist
 
 
@@ -25,7 +25,7 @@ class Phase09Directories(BasePhase):
 
         info(f"Using wordlist: {wordlist}")
 
-        if util_check_tool("ffuf"):
+        if self.tool_available("ffuf"):
             for host in live_hosts[:3]:
                 clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                 ffuf_out = f"{self.outdir}/ffuf_{clean}.json"
@@ -42,7 +42,7 @@ class Phase09Directories(BasePhase):
                     except:
                         pass
 
-        if util_check_tool("feroxbuster"):
+        if self.tool_available("feroxbuster"):
             for host in live_hosts[:3]:
                 clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                 self.run_tool(
@@ -64,7 +64,7 @@ class Phase10Params(BasePhase):
 
     def run(self, live_hosts):
         self.header()
-        if not util_check_tool("arjun"):
+        if not self.tool_available("arjun"):
             warn("arjun not installed")
             return
 

@@ -1,6 +1,6 @@
 import os
 from .base import BasePhase
-from ..utils import info, good, warn, save_to_file, read_file, check_tool as util_check_tool
+from ..utils import info, good, warn, save_to_file, read_file
 
 
 class Phase01Subdomains(BasePhase):
@@ -16,7 +16,7 @@ class Phase01Subdomains(BasePhase):
             ("assetfinder", f"assetfinder --subs-only {self.engine.domain}"),
         ]
 
-        if util_check_tool("amass"):
+        if self.tool_available("amass"):
             tools.append(("amass", f"amass enum -passive -d {self.engine.domain} -o {self.outdir}/amass_raw.txt"))
 
         for name, cmd in tools:

@@ -28,6 +28,7 @@ class NoxPwnEngine:
         self.config = config or {}
         self.quick = self.config.get("quick", False)
         self.from_phase = self.config.get("from_phase", 1)
+        self.skip_tools = set(self.config.get("skip_tools", []))
         self.findings = {"high": [], "medium": [], "low": [], "info": []}
         self.start_time = datetime.now()
         self.timer = Timer()

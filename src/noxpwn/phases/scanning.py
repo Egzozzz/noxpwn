@@ -1,6 +1,6 @@
 import os
 from .base import BasePhase
-from ..utils import info, good, warn, save_to_file, read_file, check_tool as util_check_tool
+from ..utils import info, good, warn, save_to_file, read_file
 
 
 class Phase02Ports(BasePhase):
@@ -13,7 +13,7 @@ class Phase02Ports(BasePhase):
         save_to_file(subs_file, subdomains)
         open_ports = []
 
-        if util_check_tool("naabu"):
+        if self.tool_available("naabu"):
             naabu_out = self.outdir / "naabu_ports.txt"
             self.run_tool(
                 f"naabu -list {subs_file} -silent -o {naabu_out}",
@@ -23,7 +23,7 @@ class Phase02Ports(BasePhase):
                 open_ports = read_file(naabu_out)
                 good(f"naabu: {len(open_ports)} open ports")
 
-        if util_check_tool("nmap") and open_ports:
+        if self.tool_available("nmap") and open_ports:
             targets_file = self.outdir / "nmap_targets.txt"
             save_to_file(targets_file, open_ports)
             self.run_tool(
@@ -45,7 +45,7 @@ class Phase03Httpx(BasePhase):
         save_to_file(subs_file, subdomains)
 
         live_hosts = []
-        if util_check_tool("httpx"):
+        if self.tool_available("httpx"):
             live_file = self.outdir / "live_hosts.txt"
             self.run_tool(
                 f"httpx -l {subs_file} -silent -tech-detect -status-code -o {live_file}",

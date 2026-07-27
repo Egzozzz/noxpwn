@@ -1,6 +1,6 @@
 import os
 from .base import BasePhase
-from ..utils import info, good, warn, save_to_file, read_file, check_tool as util_check_tool, run_cmd, c
+from ..utils import info, good, warn, save_to_file, read_file, run_cmd, c
 
 
 class Phase14Cors(BasePhase):
@@ -10,7 +10,7 @@ class Phase14Cors(BasePhase):
     def run(self, live_hosts):
         self.header()
 
-        if util_check_tool("corsy"):
+        if self.tool_available("corsy"):
             hosts_file = self.outdir / "targets.txt"
             save_to_file(hosts_file, live_hosts)
             out_file = self.outdir / "cors_findings.txt"
@@ -42,7 +42,7 @@ class Phase15Nuclei(BasePhase):
 
     def run(self, live_hosts):
         self.header()
-        if not util_check_tool("nuclei"):
+        if not self.tool_available("nuclei"):
             warn("nuclei not installed")
             return
 

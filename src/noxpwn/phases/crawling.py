@@ -1,6 +1,29 @@
 import os
+import shutil
 from .base import BasePhase
-from ..utils import info, good, warn, save_to_file, read_file, check_tool as util_check_tool
+from ..utils import info, good, warn, save_to_file, read_file, run_cmd, check_tool as util_check_tool
+
+
+def _resolve_cmd(tool, module_name=None, script_path=None):
+    """Resolve the best command to run a tool (binary > python module > script path)."""
+    if shutil.which(tool):
+        return tool
+    if module_name:
+        rc, _, _ = run_cmd(f"python3 -c \"import {module_name}\" 2>/dev/null", capture=True)
+        if rc == 0:
+            return f"python3 -m {module_name}"
+    if script_path and os.path.exists(script_path):
+        return f"python3 {script_path}"
+    return tool
+    if shutil.which(tool):
+        return tool
+    if module_name:
+        rc, _, _ = run_cmd(f"python3 -c \"import {module_name}\" 2>/dev/null", capture=True)
+        if rc == 0:
+            return f"python3 -m {module_name}"
+    if script_path and os.path.exists(script_path):
+        return f"python3 {script_path}"
+    return tool
 
 
 class Phase07Urls(BasePhase):
@@ -14,15 +37,15 @@ class Phase07Urls(BasePhase):
         all_urls = set()
 
         tools = []
-        if util_check_tool("katana"):
+        if self.tool_available("katana"):
             tools.append(("katana", f"katana -list {hosts_file} -silent -o {self.outdir}/katana.txt"))
-        if util_check_tool("hakrawler"):
+        if self.tool_available("hakrawler"):
             for host in live_hosts[:5]:
                 h = host.replace("https://", "").replace("http://", "").split("/")[0]
                 tools.append(("hakrawler", f"echo '{host}' | hakrawler -silent -depth 2 >> {self.outdir}/hakrawler_{h}.txt"))
-        if util_check_tool("gospider"):
+        if self.tool_available("gospider"):
             tools.append(("gospider", f"gospider -S {hosts_file} --no-redirect -c 10 -d 1 --blacklist jpg,jpeg,gif,css,png,svg --output {self.outdir}/gospider_output"))
-        if util_check_tool("waybackurls"):
+        if self.tool_available("waybackurls"):
             tools.append(("waybackurls", f"cat {hosts_file} | waybackurls > {self.outdir}/waybackurls.txt"))
 
         for name, cmd in tools:
@@ -58,7 +81,7 @@ class Phase08Js(BasePhase):
         endpoints = set()
         secrets = set()
 
-        if util_check_tool("subjs") and all_urls:
+        if self.tool_available("subjs") and all_urls:
             targets_file = self.outdir / "url_targets.txt"
             save_to_file(targets_file, all_urls[:50])
             results = self.run_tool(f"subjs -i {targets_file}", timeout=120)
@@ -66,17 +89,27 @@ class Phase08Js(BasePhase):
                 save_to_file(self.outdir / "subjs_output.txt", results)
                 good(f"subjs: {len(results)} JS files found")
 
-        if util_check_tool("linkfinder") or os.path.exists("LinkFinder/linkfinder.py"):
-            linkfinder_cmd = "linkfinder" if util_check_tool("linkfinder") else "python3 LinkFinder/linkfinder.py"
+        if self.tool_available("linkfinder") or os.path.exists("LinkFinder/linkfinder.py"):
+            lf_cmd = _resolve_cmd("linkfinder", "linkfinder", "LinkFinder/linkfinder.py")
             for js in js_urls[:20]:
                 results = self.run_tool(
-                    f"{linkfinder_cmd} -i '{js}' -o cli",
+                    f"{lf_cmd} -i '{js}' -o cli",
                     timeout=60,
                 )
                 if results:
                     endpoints.update(results)
 
-        if util_check_tool("mantra"):
+        if self.tool_available("secretfinder"):
+            sf_cmd = _resolve_cmd("secretfinder", "SecretFinder")
+            for js in js_urls[:20]:
+                results = self.run_tool(
+                    f"{sf_cmd} -i '{js}' -o cli",
+                    timeout=60,
+                )
+                if results:
+                    secrets.update(results)
+
+        if self.tool_available("mantra"):
             js_file = self.outdir / "js_files.txt"
             results = self.run_tool(f"cat {js_file} | mantra", timeout=120)
             if results:

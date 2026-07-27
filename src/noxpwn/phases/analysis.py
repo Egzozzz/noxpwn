@@ -1,5 +1,5 @@
 from .base import BasePhase
-from ..utils import info, good, warn, save_to_file, read_file, check_tool as util_check_tool, c
+from ..utils import info, good, warn, save_to_file, read_file, c
 
 
 class Phase13Classify(BasePhase):
@@ -9,7 +9,7 @@ class Phase13Classify(BasePhase):
     def run(self, param_urls):
         self.header()
 
-        if not util_check_tool("gf"):
+        if not self.tool_available("gf"):
             warn("gf not installed. Using basic regex matching.")
             xss = [u for u in param_urls if any(p in u.lower() for p in ["q=", "s=", "search=", "query=", "id=", "page="])]
             sqli = [u for u in param_urls if any(p in u.lower() for p in ["id=", "page=", "cat=", "product=", "view="])]

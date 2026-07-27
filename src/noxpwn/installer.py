@@ -14,7 +14,6 @@ REQUIRED_TOOLS = {
     "corsy": {"type": "pip", "repo": "corsy"},
     "gf": {"type": "go", "repo": "github.com/tomnomnom/gf@latest"},
     "waybackurls": {"type": "go", "repo": "github.com/tomnomnom/waybackurls@latest"},
-    "unfurl": {"type": "go", "repo": "github.com/tomnomnom/unfurl@latest"},
     "gospider": {"type": "go", "repo": "github.com/jaeles-project/gospider@latest"},
     "hakrawler": {"type": "go", "repo": "github.com/hakluke/hakrawler@latest"},
     "dalfox": {"type": "go", "repo": "github.com/hahwul/dalfox/v2@latest"},
@@ -24,6 +23,8 @@ REQUIRED_TOOLS = {
     "gowitness": {"type": "go", "repo": "github.com/sensepost/gowitness@latest"},
     "wafw00f": {"type": "pip", "repo": "wafw00f"},
     "arjun": {"type": "pip", "repo": "arjun"},
+    "nmap": {"type": "apt", "repo": "nmap"},
+    "sqlmap": {"type": "pip", "repo": "sqlmap"},
 }
 
 OPTIONAL_TOOLS = {
@@ -33,6 +34,8 @@ OPTIONAL_TOOLS = {
     "linkfinder": {"type": "git", "repo": "https://github.com/GerbenJavado/LinkFinder.git"},
     "subjs": {"type": "go", "repo": "github.com/lc/subjs@latest"},
     "feroxbuster": {"type": "apt", "repo": "feroxbuster"},
+    "mantra": {"type": "go", "repo": "github.com/MrEmpy/mantra@latest"},
+    "unfurl": {"type": "go", "repo": "github.com/tomnomnom/unfurl@latest"},
 }
 
 ALL_TOOLS = {**REQUIRED_TOOLS, **OPTIONAL_TOOLS}

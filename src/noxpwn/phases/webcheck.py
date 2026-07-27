@@ -1,6 +1,6 @@
 import os
 from .base import BasePhase
-from ..utils import info, good, warn, save_to_file, read_file, check_tool as util_check_tool
+from ..utils import info, good, warn, save_to_file, read_file
 
 
 class Phase04Takeover(BasePhase):
@@ -13,7 +13,7 @@ class Phase04Takeover(BasePhase):
         save_to_file(hosts_file, live_hosts)
         findings = set()
 
-        if util_check_tool("subzy"):
+        if self.tool_available("subzy"):
             results = self.run_tool(
                 f"subzy run --targets {hosts_file} --hide_fails --vuln",
                 timeout=300,
@@ -29,7 +29,7 @@ class Phase04Takeover(BasePhase):
             else:
                 info("subzy: no takeovers")
 
-        if util_check_tool("nuclei"):
+        if self.tool_available("nuclei"):
             nuc_file = self.outdir / "nuclei_takeover.txt"
             self.run_tool(
                 f"nuclei -l {hosts_file} -tags takeover -silent -o {nuc_file}",
@@ -50,7 +50,7 @@ class Phase05Waf(BasePhase):
 
     def run(self, live_hosts):
         self.header()
-        if not util_check_tool("wafw00f"):
+        if not self.tool_available("wafw00f"):
             warn("wafw00f not installed")
             return
 
@@ -69,7 +69,7 @@ class Phase06Screenshots(BasePhase):
 
     def run(self, live_hosts, important_findings=False):
         self.header()
-        if not util_check_tool("gowitness"):
+        if not self.tool_available("gowitness"):
             warn("gowitness not installed")
             return
 

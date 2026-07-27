@@ -1,12 +1,32 @@
 #!/usr/bin/env python3
 import sys
 import argparse
-import os
 from pathlib import Path
 
 from .utils import banner, info, warn, error, good, c, check_tool as util_check_tool
-from .installer import auto_install_missing, REQUIRED_TOOLS, OPTIONAL_TOOLS, ALL_TOOLS
+from .installer import auto_install_missing, REQUIRED_TOOLS, OPTIONAL_TOOLS, ALL_TOOLS, install_tool
 from .engine import NoxPwnEngine
+
+
+def update_noxpwn():
+    print(banner())
+    info("Checking for updates...")
+    repo_dir = Path(__file__).resolve().parent.parent.parent
+    if not (repo_dir / ".git").exists():
+        error("Not a git repository. Clone manually:")
+        error("  git clone https://github.com/Egzozzz/noxpwn.git")
+        return
+    info(f"Repository: {repo_dir}")
+    from .utils import run_cmd
+    rc, out, err = run_cmd(f"cd \"{repo_dir}\" && git fetch origin && git pull origin", timeout=60, live=True)
+    if rc == 0:
+        good("noxpwn updated successfully!")
+        rc2, ver, _ = run_cmd(f"cd \"{repo_dir}\" && git describe --tags 2>/dev/null || git log --oneline -1", timeout=10)
+        if rc2 == 0 and ver:
+            info(f"Version: {ver.strip()[:60]}")
+    else:
+        error("Update failed. Try manually:")
+        error(f"  cd {repo_dir} && git pull")
 
 
 def main():
@@ -19,8 +39,10 @@ Examples:
   noxpwn -u https://example.com -o ./results
   noxpwn -u https://example.com --quick
   noxpwn -u https://example.com --skip-install
+  noxpwn -u https://example.com --skip-tools amass,gospider
   noxpwn --list-tools
   noxpwn --install-all
+  noxpwn --update
         """,
     )
 
@@ -32,8 +54,18 @@ Examples:
     parser.add_argument("--quick", action="store_true", help="Quick mode (skip slow scans)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     parser.add_argument("--from-phase", type=int, default=1, help="Start from specific phase number")
+    parser.add_argument("--skip-tools", help="Comma-separated tools to skip (e.g. amass,gospider,ffuf)")
+    parser.add_argument("--update", action="store_true", help="Update noxpwn to latest version from GitHub")
 
     args = parser.parse_args()
+
+    if args.update:
+        update_noxpwn()
+        return
+
+    skip_tools = []
+    if args.skip_tools:
+        skip_tools = [t.strip().lower() for t in args.skip_tools.split(",")]
 
     if args.list_tools:
         print(banner())
@@ -51,7 +83,6 @@ Examples:
         print(banner())
         info("Installing all tools...")
         for name in ALL_TOOLS:
-            from .installer import install_tool
             if not util_check_tool(name):
                 if install_tool(name):
                     good(f"{name} installed")
@@ -66,12 +97,16 @@ Examples:
     if not args.skip_install:
         info("Checking required tools...")
         all_tool_names = list(REQUIRED_TOOLS.keys()) + list(OPTIONAL_TOOLS.keys())
+        if skip_tools:
+            all_tool_names = [t for t in all_tool_names if t not in skip_tools]
+            info(f"Skipping excluded tools: {', '.join(skip_tools)}")
         auto_install_missing(all_tool_names)
 
     config = {
         "quick": args.quick,
         "verbose": args.verbose,
         "from_phase": args.from_phase,
+        "skip_tools": skip_tools,
     }
 
     engine = NoxPwnEngine(args.url, args.output, config)

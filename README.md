@@ -17,7 +17,7 @@ NOXPWN is an automated bug bounty and penetration testing tool that chains 25+ i
 | 05 | WAF Detection | wafw00f |
 | 06 | Screenshots | gowitness (smart mode) |
 | 07 | URL Collection | katana, hakrawler, gospider, waybackurls |
-| 08 | JavaScript Analysis | subjs, LinkFinder, mantra |
+| 08 | JavaScript Analysis | subjs, LinkFinder, SecretFinder, mantra |
 | 09 | Directory Bruteforce | ffuf, feroxbuster |
 | 10 | Parameter Discovery | arjun |
 | 11 | API & GraphQL | kiterunner, graphw00f |
@@ -25,14 +25,16 @@ NOXPWN is an automated bug bounty and penetration testing tool that chains 25+ i
 | 13 | Pattern Classification | gf (xss/sqli/lfi/ssrf/rce) |
 | 14 | CORS Misconfiguration | corsy |
 | 15 | Vulnerability Scan | nuclei (critical/high/medium) |
-| 16 | XSS Report | Manual dalfox suggestions |
-| 17 | SQLi Report | Manual sqlmap suggestions |
+| 16 | XSS Report | dalfox suggestions |
+| 17 | SQLi Report | sqlmap suggestions |
 
 **Smart Features:**
 - 🧠 **Smart Screenshots**: Full screenshot mode only when critical findings are discovered
 - 🔍 **XSS/SQLi Detection**: Flags potential vulnerabilities with manual testing commands
 - 📦 **Auto-Install**: Detects and installs missing tools automatically
 - ⚡ **Quick Mode**: Skips slow scans for rapid recon
+- 🚫 **Skip Tools**: Exclude specific tools with `--skip-tools`
+- 🔄 **Self-Update**: Update to latest version with `--update`
 - 📊 **Detailed Report**: Generates comprehensive scan reports
 
 ---
@@ -98,6 +100,11 @@ noxpwn -u https://example.com
 ./noxpwn -u https://target.com --from-phase 8
 ```
 
+### Skip Specific Tools
+```bash
+./noxpwn -u https://target.com --skip-tools amass,gospider,ffuf
+```
+
 ### Skip Tool Installation Check
 ```bash
 ./noxpwn -u https://target.com --skip-install
@@ -106,6 +113,11 @@ noxpwn -u https://example.com
 ### Install All Dependencies
 ```bash
 ./noxpwn --install-all
+```
+
+### Update noxpwn (from GitHub)
+```bash
+./noxpwn --update
 ```
 
 ---
@@ -151,14 +163,27 @@ noxpwn_output/
 | assetfinder | go install | Subdomain discovery |
 | waybackurls | go install | URL collection |
 | gowitness | go install | Screenshots |
-| wafw00f | pip install | WAF detection |
-| arjun | pip install | Parameter discovery |
 | dalfox | go install | XSS scanning |
 | kiterunner | go install | API bruteforce |
+| gospider | go install | URL crawling |
+| hakrawler | go install | URL crawling |
+| wafw00f | pip install | WAF detection |
+| arjun | pip install | Parameter discovery |
 | corsy | pip install | CORS checking |
+| nmap | apt install | Port scanning |
+| sqlmap | pip install | SQLi detection |
 
 ### Optional Tools
-- amass, graphw00f, secretfinder, linkfinder, subjs, feroxbuster
+| Tool | Installation | Purpose |
+|------|-------------|---------|
+| amass | go install | Subdomain discovery |
+| graphw00f | pip install (GitHub) | GraphQL detection |
+| secretfinder | pip install (GitHub) | JS secret discovery |
+| linkfinder | pip install (GitHub) | JS endpoint discovery |
+| subjs | go install | JS file discovery |
+| feroxbuster | apt install | Directory bruteforce |
+| mantra | go install | JS secret analysis |
+| unfurl | go install | URL parsing |
 
 ---
 

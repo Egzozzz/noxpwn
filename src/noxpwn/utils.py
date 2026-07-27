@@ -67,7 +67,7 @@ def run_cmd(cmd, timeout=600, capture=True, live=False):
         if live:
             process = subprocess.Popen(
                 cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, bufsize=1
+                text=True, bufsize=1, errors='replace'
             )
             output_lines = []
             for line in iter(process.stdout.readline, ''):
@@ -76,7 +76,7 @@ def run_cmd(cmd, timeout=600, capture=True, live=False):
             process.wait()
             return process.returncode, "\n".join(output_lines), ""
         r = subprocess.run(
-            cmd, shell=True, capture_output=capture, text=True, timeout=timeout
+            cmd, shell=True, capture_output=capture, text=True, timeout=timeout, errors='replace'
         )
         return r.returncode, r.stdout.strip() if capture else "", r.stderr.strip() if capture else ""
     except subprocess.TimeoutExpired:
@@ -127,6 +127,20 @@ def check_tool(name):
     for gp in go_paths:
         if os.path.exists(os.path.join(gp, name)):
             return True
+    python_module_map = {
+        "corsy": ["corsy"],
+        "wafw00f": ["wafw00f"],
+        "arjun": ["arjun"],
+        "linkfinder": ["linkfinder", "LinkFinder"],
+        "secretfinder": ["secretfinder", "SecretFinder"],
+        "graphw00f": ["graphw00f"],
+        "mantra": ["mantra"],
+    }
+    if name in python_module_map:
+        for mod in python_module_map[name]:
+            rc, _, _ = run_cmd(f"python3 -c \"import {mod}\" 2>/dev/null", capture=True)
+            if rc == 0:
+                return True
     return False
 
 

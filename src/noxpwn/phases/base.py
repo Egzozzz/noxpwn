@@ -11,6 +11,11 @@ class BasePhase:
         self.engine = engine
         self.outdir = None
 
+    def tool_available(self, tool_name):
+        if tool_name in self.engine.skip_tools:
+            return False
+        return check_tool(tool_name)
+
     def header(self):
         phase_header(self.phase_num, self.name)
         self.outdir = ensure_dir(self.engine.base_dir / f"{self.phase_num:02d}-{self.name.lower().replace(' ', '-')}")

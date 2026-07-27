@@ -1,6 +1,6 @@
 import os
 from .base import BasePhase
-from ..utils import info, good, warn, save_to_file, read_file, check_tool as util_check_tool, run_cmd
+from ..utils import info, good, warn, save_to_file, read_file, run_cmd
 from ..config import GRAPHQL_PATHS, find_kiterunner_wordlist
 
 
@@ -11,7 +11,7 @@ class Phase11Api(BasePhase):
     def run(self, live_hosts):
         self.header()
 
-        if util_check_tool("kiterunner"):
+        if self.tool_available("kiterunner"):
             kr_wl = find_kiterunner_wordlist()
             if kr_wl:
                 hosts_file = self.outdir / "targets.txt"
@@ -25,7 +25,7 @@ class Phase11Api(BasePhase):
             else:
                 warn("kiterunner wordlist not found")
 
-        if util_check_tool("graphw00f"):
+        if self.tool_available("graphw00f"):
             for host in live_hosts[:5]:
                 self.run_tool(
                     f"python3 -m graphw00f.main -t {host} -d",
@@ -54,7 +54,7 @@ class Phase12ParamUrls(BasePhase):
         save_to_file(self.outdir / "param_urls.txt", param_urls)
         info(f"URLs with params: {len(param_urls)}")
 
-        if param_urls and util_check_tool("httpx"):
+        if param_urls and self.tool_available("httpx"):
             urls_file = self.outdir / "urls.txt"
             save_to_file(urls_file, param_urls)
             live_file = self.outdir / "live_param_urls.txt"
