@@ -3,38 +3,55 @@ import sys
 import shutil
 from .utils import info, good, warn, error, run_cmd, check_tool, c
 
-
 REQUIRED_TOOLS = {
+    # Subdomain Discovery
     "subfinder": {"type": "go", "repo": "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"},
-    "httpx": {"type": "go", "repo": "github.com/projectdiscovery/httpx/cmd/httpx@latest"},
-    "naabu": {"type": "go", "repo": "github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"},
-    "nuclei": {"type": "go", "repo": "github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"},
-    "katana": {"type": "go", "repo": "github.com/projectdiscovery/katana/cmd/katana@latest"},
-    "subzy": {"type": "go", "repo": "github.com/PentestPad/subzy@latest"},
-    "corsy": {"type": "pip", "repo": "corsy"},
-    "gf": {"type": "go", "repo": "github.com/tomnomnom/gf@latest"},
-    "waybackurls": {"type": "go", "repo": "github.com/tomnomnom/waybackurls@latest"},
-    "gospider": {"type": "go", "repo": "github.com/jaeles-project/gospider@latest"},
-    "hakrawler": {"type": "go", "repo": "github.com/hakluke/hakrawler@latest"},
-    "dalfox": {"type": "go", "repo": "github.com/hahwul/dalfox/v2@latest"},
-    "kiterunner": {"type": "go", "repo": "github.com/assetnote/kiterunner@latest"},
     "assetfinder": {"type": "go", "repo": "github.com/tomnomnom/assetfinder@latest"},
-    "ffuf": {"type": "go", "repo": "github.com/ffuf/ffuf/v2@latest"},
-    "gowitness": {"type": "go", "repo": "github.com/sensepost/gowitness@latest"},
-    "wafw00f": {"type": "pip", "repo": "wafw00f"},
-    "arjun": {"type": "pip", "repo": "arjun"},
+    "dnsx": {"type": "go", "repo": "github.com/projectdiscovery/dnsx/cmd/dnsx@latest"},
+    # Port & Service
+    "naabu": {"type": "go", "repo": "github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"},
     "nmap": {"type": "apt", "repo": "nmap"},
+    # Live Host
+    "httpx": {"type": "go", "repo": "github.com/projectdiscovery/httpx/cmd/httpx@latest"},
+    # Takeover
+    "subzy": {"type": "go", "repo": "github.com/PentestPad/subzy@latest"},
+    # WAF
+    "wafw00f": {"type": "pip", "repo": "wafw00f"},
+    # Screenshot
+    "gowitness": {"type": "go", "repo": "github.com/sensepost/gowitness@latest"},
+    # URL Collection
+    "katana": {"type": "go", "repo": "github.com/projectdiscovery/katana/cmd/katana@latest"},
+    "gau": {"type": "go", "repo": "github.com/lc/gau/v2/cmd/gau@latest"},
+    "hakrawler": {"type": "go", "repo": "github.com/hakluke/hakrawler@latest"},
+    "gospider": {"type": "go", "repo": "github.com/jaeles-project/gospider@latest"},
+    "waybackurls": {"type": "go", "repo": "github.com/tomnomnom/waybackurls@latest"},
+    # JS Analysis
+    "subjs": {"type": "go", "repo": "github.com/lc/subjs@latest"},
+    "trufflehog": {"type": "go", "repo": "github.com/trufflesecurity/trufflehog/v3@latest"},
+    "jsleak": {"type": "go", "repo": "github.com/channyein1337/jsleak@latest"},
+    # Directory Bruteforce
+    "ffuf": {"type": "go", "repo": "github.com/ffuf/ffuf/v2@latest"},
+    # Parameter Discovery
+    "arjun": {"type": "pip", "repo": "arjun"},
+    "x8": {"type": "go", "repo": "github.com/Sh1Yo/x8@latest"},
+    # Pattern Matching
+    "gf": {"type": "go", "repo": "github.com/tomnomnom/gf@latest"},
+    # CORS
+    "CorsMe": {"type": "go", "repo": "github.com/shivangx01b/CorsMe@latest"},
+    # Vulnerability
+    "nuclei": {"type": "go", "repo": "github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"},
+    # XSS / SQLi
+    "dalfox": {"type": "go", "repo": "github.com/hahwul/dalfox/v2@latest"},
     "sqlmap": {"type": "pip", "repo": "sqlmap"},
 }
 
 OPTIONAL_TOOLS = {
     "amass": {"type": "go", "repo": "github.com/owasp-amass/amass/v4/...@master"},
-    "graphw00f": {"type": "pip", "repo": "git+https://github.com/dno-git/graphw00f.git"},
-    "secretfinder": {"type": "pip", "repo": "git+https://github.com/m4ll0k/SecretFinder.git"},
+    "gotator": {"type": "go", "repo": "github.com/Josue87/gotator@latest"},
+    "puredns": {"type": "go", "repo": "github.com/d3mondev/puredns/v2@latest"},
     "linkfinder": {"type": "git", "repo": "https://github.com/GerbenJavado/LinkFinder.git"},
-    "subjs": {"type": "go", "repo": "github.com/lc/subjs@latest"},
-    "feroxbuster": {"type": "apt", "repo": "feroxbuster"},
     "mantra": {"type": "go", "repo": "github.com/MrEmpy/mantra@latest"},
+    "feroxbuster": {"type": "apt", "repo": "feroxbuster"},
     "unfurl": {"type": "go", "repo": "github.com/tomnomnom/unfurl@latest"},
 }
 

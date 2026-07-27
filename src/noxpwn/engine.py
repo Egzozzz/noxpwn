@@ -1,10 +1,11 @@
 import os
 import re
+import traceback
 from datetime import datetime
 from pathlib import Path
 
 from .utils import (
-    banner, info, good, warn, phase_header, save_to_file, read_file,
+    banner, info, good, warn, error, phase_header, save_to_file, read_file,
     check_tool, ensure_dir, c
 )
 from .progress import Timer
@@ -34,6 +35,10 @@ class NoxPwnEngine:
         self.timer = Timer()
         self.xss_candidates = []
         self.sqli_candidates = []
+        self.lfi_candidates = []
+        self.ssrf_candidates = []
+        self.rce_candidates = []
+        ensure_dir(self.base_dir)
 
     def should_run(self, phase_num):
         return phase_num >= self.from_phase
@@ -49,6 +54,15 @@ class NoxPwnEngine:
         color_map = {"high": "red", "medium": "yellow", "low": "blue", "info": "cyan"}
         icon_map = {"high": "🔥", "medium": "⚠", "low": "ℹ", "info": "→"}
         print(f"  {c(icon_map[severity], color_map[severity])} {c(f'[{severity.upper()}]', color_map[severity])} {title}")
+
+    def safe_run_phase(self, phase_obj, *args, **kwargs):
+        try:
+            return phase_obj.run(*args, **kwargs)
+        except Exception as e:
+            error(f"Phase {phase_obj.phase_num} ({phase_obj.name}) failed: {e}")
+            if self.config.get("verbose", False):
+                traceback.print_exc()
+            return None
 
     def generate_report(self):
         outdir = ensure_dir(self.base_dir / "report")
@@ -77,17 +91,19 @@ class NoxPwnEngine:
         lines.append("")
         lines.append(" Directory Structure:")
         lines.append(f"  {self.base_dir}")
-        for d in sorted(os.listdir(self.base_dir)):
-            dp = self.base_dir / d
-            if os.path.isdir(dp):
-                count = len([f for f in os.listdir(dp) if os.path.isfile(dp / f)])
-                lines.append(f"  ├── {d}/ ({count} files)")
+        if os.path.exists(self.base_dir):
+            for d in sorted(os.listdir(self.base_dir)):
+                dp = self.base_dir / d
+                if os.path.isdir(dp):
+                    count = len([f for f in os.listdir(dp) if os.path.isfile(dp / f)])
+                    lines.append(f"  ├── {d}/ ({count} files)")
 
         lines.append("")
-        if self.xss_candidates:
-            lines.append(f" XSS Candidates: {len(self.xss_candidates)}")
-        if self.sqli_candidates:
-            lines.append(f" SQLi Candidates: {len(self.sqli_candidates)}")
+        for name, items in [("XSS", self.xss_candidates), ("SQLi", self.sqli_candidates),
+                            ("LFI", self.lfi_candidates), ("SSRF", self.ssrf_candidates),
+                            ("RCE", self.rce_candidates)]:
+            if items:
+                lines.append(f" {name} Candidates: {len(items)}")
 
         report_path = outdir / "scan_report.txt"
         save_to_file(report_path, "\n".join(lines))
@@ -108,50 +124,96 @@ class NoxPwnEngine:
         all_urls = []
         param_urls = []
 
+        # === PHASE 1: Subdomains ===
         if self.should_run(1):
-            subdomains = Phase01Subdomains(self).run()
+            result = self.safe_run_phase(Phase01Subdomains(self))
+            if result:
+                subdomains = result
         if not subdomains:
             warn("No subdomains found, using target directly")
             subdomains = [self.domain]
 
+        # === PHASE 2: Ports ===
         if self.should_run(2):
-            Phase02Ports(self).run(subdomains)
+            self.safe_run_phase(Phase02Ports(self), subdomains)
+
+        # === PHASE 3: Live Hosts ===
         if self.should_run(3):
-            live_hosts = Phase03Httpx(self).run(subdomains)
+            result = self.safe_run_phase(Phase03Httpx(self), subdomains)
+            if result:
+                live_hosts = result
         if not live_hosts:
             live_hosts = [f"https://{d}" for d in subdomains[:5]]
 
+        # === PHASE 4: Takeover ===
         if self.should_run(4):
-            Phase04Takeover(self).run(live_hosts)
-        if self.should_run(5):
-            Phase05Waf(self).run(live_hosts)
+            self.safe_run_phase(Phase04Takeover(self), live_hosts)
 
+        # === PHASE 5: WAF ===
+        if self.should_run(5):
+            self.safe_run_phase(Phase05Waf(self), live_hosts)
+
+        # === PHASE 6: Screenshots ===
         important = bool(self.findings["high"])
         if self.should_run(6):
-            Phase06Screenshots(self).run(live_hosts, important_findings=important)
+            self.safe_run_phase(Phase06Screenshots(self), live_hosts, important_findings=important)
 
+        # === PHASE 7: URL Collection ===
         if self.should_run(7):
-            all_urls = Phase07Urls(self).run(live_hosts)
+            result = self.safe_run_phase(Phase07Urls(self), live_hosts)
+            if result:
+                all_urls = result
+
+        # === PHASE 8: JS Analysis ===
         if self.should_run(8):
-            Phase08Js(self).run(all_urls or live_hosts)
+            self.safe_run_phase(Phase08Js(self), all_urls or live_hosts)
+
+        # === PHASE 9: Directory Bruteforce ===
         if self.should_run(9) and not self.quick:
-            Phase09Directories(self).run(live_hosts)
+            result = self.safe_run_phase(Phase09Directories(self), live_hosts)
+            if result:
+                # Feed discovered paths back as URLs for deeper scanning
+                all_urls.extend(result)
+
+        # === PHASE 10: Parameter Discovery ===
         if self.should_run(10) and not self.quick:
-            Phase10Params(self).run(live_hosts)
+            self.safe_run_phase(Phase10Params(self), live_hosts)
+
+        # === PHASE 11: API & GraphQL ===
         if self.should_run(11) and not self.quick:
-            Phase11Api(self).run(live_hosts)
+            self.safe_run_phase(Phase11Api(self), live_hosts)
+
+        # === PHASE 12: Param URLs ===
         if self.should_run(12):
-            param_urls = Phase12ParamUrls(self).run(all_urls or live_hosts)
+            result = self.safe_run_phase(Phase12ParamUrls(self), all_urls or live_hosts)
+            if result:
+                param_urls = result
+
+        # === PHASE 13: Pattern Classification ===
         if self.should_run(13):
-            Phase13Classify(self).run(param_urls or live_hosts)
+            result = self.safe_run_phase(Phase13Classify(self), param_urls or live_hosts)
+            if result:
+                self.xss_candidates = result.get("xss", [])
+                self.sqli_candidates = result.get("sqli", [])
+                self.lfi_candidates = result.get("lfi", [])
+                self.ssrf_candidates = result.get("ssrf", [])
+                self.rce_candidates = result.get("rce", [])
+
+        # === PHASE 14: CORS ===
         if self.should_run(14) and not self.quick:
-            Phase14Cors(self).run(live_hosts)
+            self.safe_run_phase(Phase14Cors(self), live_hosts)
+
+        # === PHASE 15: Nuclei ===
         if self.should_run(15) and not self.quick:
-            Phase15Nuclei(self).run(live_hosts)
+            self.safe_run_phase(Phase15Nuclei(self), live_hosts)
+
+        # === PHASE 16: XSS ===
         if self.should_run(16):
-            Phase16Xss(self).run()
+            self.safe_run_phase(Phase16Xss(self))
+
+        # === PHASE 17: SQLi ===
         if self.should_run(17):
-            Phase17Sqli(self).run()
+            self.safe_run_phase(Phase17Sqli(self))
 
         report = self.generate_report()
 

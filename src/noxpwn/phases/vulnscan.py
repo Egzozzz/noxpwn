@@ -9,31 +9,32 @@ class Phase14Cors(BasePhase):
 
     def run(self, live_hosts):
         self.header()
+        hosts_file = self.outdir / "targets.txt"
+        save_to_file(hosts_file, live_hosts)
 
-        if self.tool_available("corsy"):
-            hosts_file = self.outdir / "targets.txt"
-            save_to_file(hosts_file, live_hosts)
-            out_file = self.outdir / "cors_findings.txt"
-            self.run_tool(
-                f"python3 -m corsy -i {hosts_file} -o {out_file}",
-                timeout=120,
-            )
-            if os.path.exists(out_file):
-                findings = read_file(out_file)
+        if self.tool_available("CorsMe"):
+            cf = self.outdir / "cors_findings.txt"
+            self.run_tool(f"CorsMe -i {hosts_file} -o {cf}", timeout=120)
+            if cf.exists():
+                findings = read_file(cf)
                 if findings:
-                    self.add_finding("medium", f"CORS issues: {len(findings)}")
-                    good(f"CORS: {len(findings)} misconfigs")
+                    for f in findings[:10]:
+                        self.add_finding("medium", f"CORS: {f.strip()[:120]}")
+                    good(f"CorsMe: {len(findings)} misconfigurations")
                 else:
                     info("CORS: no issues found")
         else:
-            warn("corsy not installed. Running basic check...")
+            warn("CorsMe not installed. Running basic check...")
+            origins = ["https://evil.com", "null", "https://evil.com:80", "https://evil.com:443"]
             for host in live_hosts[:5]:
-                _, out, _ = run_cmd(
-                    f"curl -s -I -H 'Origin: https://evil.com' '{host}'",
-                    timeout=10,
-                )
-                if "Access-Control-Allow-Origin" in out and "evil" in out:
-                    self.add_finding("medium", f"CORS misconfig: {host}")
+                for origin in origins:
+                    _, out, _ = run_cmd(
+                        f"curl -s -I -H 'Origin: {origin}' '{host}' 2>/dev/null",
+                        timeout=10,
+                    )
+                    if "Access-Control-Allow-Origin" in out:
+                        if origin in out or "*" in out:
+                            self.add_finding("medium", f"CORS misconfig: {host} (origin: {origin})")
 
 
 class Phase15Nuclei(BasePhase):
@@ -48,21 +49,21 @@ class Phase15Nuclei(BasePhase):
 
         hosts_file = self.outdir / "targets.txt"
         save_to_file(hosts_file, live_hosts)
-        out_file = self.outdir / "nuclei_vulns.txt"
+        of = self.outdir / "nuclei_vulns.txt"
 
         info("Scanning with nuclei (critical/high/medium)...")
         self.run_tool(
-            f"nuclei -l {hosts_file} -severity critical,high,medium -silent -o {out_file}",
+            f"nuclei -l {hosts_file} -severity critical,high,medium -silent -o {of}",
             timeout=900,
         )
 
-        vulns = read_file(out_file)
+        vulns = read_file(of)
         if vulns:
-            good(f"nuclei: {len(vulns)} vulnerabilities!")
-            for v in vulns[:15]:
-                self.add_finding("high", f"Nuclei: {v[:120]}")
+            good(f"nuclei: {len(vulns)} vulnerabilities found!")
+            for v in vulns[:20]:
+                self.add_finding("high", f"Nuclei: {v.strip()[:120]}")
         else:
-            good("nuclei: no findings")
+            good("nuclei: no vulnerabilities found")
 
 
 class Phase16Xss(BasePhase):
@@ -71,13 +72,14 @@ class Phase16Xss(BasePhase):
 
     def run(self):
         self.header()
-        if self.engine.xss_candidates:
-            warn(f"🔥 {len(self.engine.xss_candidates)} XSS candidates!")
-            print(f"\n  {c('Manual test with dalfox:', 'yellow')}")
+        candidates = self.engine.xss_candidates
+        if candidates:
+            warn(f"🔥 {len(candidates)} XSS candidates found!")
+            print(f"\n  {c('Verify with dalfox:', 'yellow')}")
             print(f"    {c('dalfox url <URL> --pipe', 'cyan')}")
             print(f"    {c('dalfox file {}/xss_candidates.txt --pipe'.format(self.outdir), 'cyan')}")
             print(f"\n  {c('Top candidates:', 'bold')}")
-            for u in self.engine.xss_candidates[:10]:
+            for u in candidates[:10]:
                 print(f"    {c('→', 'red')} {u}")
         else:
             good("No XSS candidates found")
@@ -89,12 +91,14 @@ class Phase17Sqli(BasePhase):
 
     def run(self):
         self.header()
-        if self.engine.sqli_candidates:
-            warn(f"🔥 {len(self.engine.sqli_candidates)} SQLi candidates!")
-            print(f"\n  {c('Manual test with sqlmap:', 'yellow')}")
-            print(f"    {c('sqlmap -u \"<URL>\" --batch --risk=3 --level=3', 'cyan')}")
+        candidates = self.engine.sqli_candidates
+        if candidates:
+            warn(f"🔥 {len(candidates)} SQLi candidates found!")
+            print(f"\n  {c('Verify with sqlmap:', 'yellow')}")
+            for u in candidates[:5]:
+                print(f"    {c(f'sqlmap -u \"{u}\" --batch --risk=3 --level=3', 'cyan')}")
             print(f"\n  {c('Top candidates:', 'bold')}")
-            for u in self.engine.sqli_candidates[:10]:
+            for u in candidates[:10]:
                 print(f"    {c('→', 'red')} {u}")
         else:
             good("No SQLi candidates found")

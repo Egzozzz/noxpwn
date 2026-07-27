@@ -1,6 +1,7 @@
 import os
+import json
 from .base import BasePhase
-from ..utils import info, good, warn, save_to_file, read_file
+from ..utils import info, good, warn, save_to_file, read_file, run_cmd
 
 
 class Phase01Subdomains(BasePhase):
@@ -11,24 +12,119 @@ class Phase01Subdomains(BasePhase):
         self.header()
         all_subs = set()
 
+        # --- PASSIVE SOURCES ---
         tools = [
-            ("subfinder", f"subfinder -d {self.engine.domain} -silent"),
-            ("assetfinder", f"assetfinder --subs-only {self.engine.domain}"),
+            ("subfinder", f"subfinder -d {self.engine.domain} -silent -all -o {self.outdir}/subfinder.txt"),
+            ("assetfinder", f"assetfinder --subs-only {self.engine.domain} > {self.outdir}/assetfinder.txt"),
         ]
-
         if self.tool_available("amass"):
             tools.append(("amass", f"amass enum -passive -d {self.engine.domain} -o {self.outdir}/amass_raw.txt"))
 
         for name, cmd in tools:
             self.run_tool(cmd, timeout=300)
+            raw_file = self.outdir / f"{name}_raw.txt"
             out_file = self.outdir / f"{name}.txt"
-            if os.path.exists(out_file):
-                subs = [l.strip().lower() for l in read_file(out_file) if l.strip()]
-            else:
-                subs = []
+            src = raw_file if raw_file.exists() else out_file
+            subs = [l.strip().lower() for l in read_file(src) if l.strip()] if src.exists() else []
             all_subs.update(subs)
             if subs:
                 good(f"{name}: {len(subs)} subdomains")
+
+        # --- CERT.SH (historical subdomains) ---
+        info("Fetching crt.sh certificate transparency logs...")
+        rc, out, _ = run_cmd(
+            f"curl -sk 'https://crt.sh/?q=%25.{self.engine.domain}&output=json' 2>/dev/null",
+            timeout=60,
+        )
+        if rc == 0 and out:
+            try:
+                data = json.loads(out)
+                crt_subs = set()
+                for entry in data:
+                    name_value = entry.get("name_value", "")
+                    for sub in name_value.split("\n"):
+                        s = sub.strip().lower()
+                        if s and s.endswith(self.engine.domain) and "*" not in s:
+                            crt_subs.add(s)
+                if crt_subs:
+                    save_to_file(self.outdir / "crt_sh.txt", sorted(crt_subs))
+                    all_subs.update(crt_subs)
+                    good(f"crt.sh: {len(crt_subs)} historical subdomains")
+            except (json.JSONDecodeError, KeyError):
+                warn("crt.sh parsing failed (possible rate limit)")
+
+        # --- RESOLVE with dnsx (filters wildcard / dead domains) ---
+        if all_subs and self.tool_available("dnsx"):
+            subs_file = self.outdir / "raw_subs.txt"
+            save_to_file(subs_file, sorted(all_subs))
+            resolved_file = self.outdir / "resolved.txt"
+            self.run_tool(f"dnsx -l {subs_file} -silent -o {resolved_file}", timeout=300)
+            if resolved_file.exists():
+                resolved = [l.strip().lower() for l in read_file(resolved_file) if l.strip()]
+                if resolved:
+                    good(f"dnsx: {len(resolved)} resolving subdomains (filtered {len(all_subs) - len(resolved)} dead/wildcard)")
+                    all_subs = set(resolved)
+
+        # --- PERMUTATIONS (gotator, optional) ---
+        gtool = "gotator"
+        if self.tool_available(gtool) and len(all_subs) > 2:
+            subs_file = self.outdir / "subs_for_perm.txt"
+            save_to_file(subs_file, sorted(all_subs)[:100])
+            perm_file = self.outdir / "permutations.txt"
+
+            # Try common permutation wordlists
+            perm_wordlists = [
+                "/usr/share/seclists/Discovery/DNS/deepmagic.com-prefixes-top500.txt",
+                "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt",
+                "/usr/share/wordlists/dirb/common.txt",
+            ]
+            pw = None
+            for p in perm_wordlists:
+                if os.path.exists(p):
+                    pw = p
+                    break
+
+            if not pw:
+                # Generate a basic permutation list
+                basic_perms = [
+                    "dev", "api", "admin", "test", "stage", "prod", "beta",
+                    "app", "mail", "cdn", "static", "assets", "blog", "www",
+                    "m", "mobile", "secure", "portal", "support", "help",
+                ]
+                pw = self.outdir / "basic_perms.txt"
+                save_to_file(pw, basic_perms)
+                info(f"Using basic permutation wordlist: {len(basic_perms)} entries")
+            else:
+                info(f"Using permutation wordlist: {pw}")
+
+            self.run_tool(
+                f"gotator -sub {subs_file} -perm {pw} -depth 1 -numbers 3 -mindup -silent > {perm_file}",
+                timeout=300,
+            )
+            if perm_file.exists():
+                perms = [l.strip().lower() for l in read_file(perm_file) if l.strip()]
+                if perms:
+                    good(f"gotator: {len(perms)} permutations generated")
+
+                    # Resolve permutations
+                    if self.tool_available("puredns"):
+                        self.run_tool(
+                            f"puredns resolve {perm_file} -o {self.outdir}/perm_resolved.txt",
+                            timeout=300,
+                        )
+                        perm_resolved = [l.strip().lower() for l in read_file(self.outdir / "perm_resolved.txt") if l.strip()]
+                        if perm_resolved:
+                            all_subs.update(perm_resolved)
+                            good(f"puredns: {len(perm_resolved)} valid permutations")
+                    elif self.tool_available("dnsx"):
+                        self.run_tool(
+                            f"dnsx -l {perm_file} -silent -o {self.outdir}/perm_resolved.txt",
+                            timeout=300,
+                        )
+                        perm_resolved = [l.strip().lower() for l in read_file(self.outdir / "perm_resolved.txt") if l.strip()]
+                        if perm_resolved:
+                            all_subs.update(perm_resolved)
+                            good(f"dnsx: {len(perm_resolved)} valid permutations")
 
         final = sorted(all_subs)
         save_to_file(self.outdir / "all_subs.txt", final)
