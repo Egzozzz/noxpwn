@@ -13,6 +13,7 @@ class BasePhase:
 
     def tool_available(self, tool_name):
         if tool_name.lower() in self.engine.skip_tools:
+            warn(f"Skipping {tool_name} (--skip-tools)")
             return False
         return check_tool(tool_name)
 

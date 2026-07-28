@@ -56,7 +56,7 @@ Examples:
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
     parser.add_argument("-v", "--version", action="store_true", help="Show version and exit")
     parser.add_argument("--from-phase", type=int, default=1, help="Start from specific phase number")
-    parser.add_argument("--skip-tools", help="Comma-separated tools to skip (e.g. amass,gospider,ffuf)")
+    parser.add_argument("--skip-tools", nargs="+", help="Tools to skip (space or comma separated, e.g. --skip-tools ffuf feroxbuster arjun)")
     parser.add_argument("--update", action="store_true", help="Update noxpwn to latest version from GitHub")
 
     args = parser.parse_args()
@@ -71,7 +71,8 @@ Examples:
 
     skip_tools = []
     if args.skip_tools:
-        skip_tools = [t.strip().lower() for t in args.skip_tools.split(",")]
+        for part in args.skip_tools:
+            skip_tools.extend(t.strip().lower() for t in part.split(",") if t.strip())
 
     if args.list_tools:
         print(banner())

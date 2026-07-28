@@ -13,10 +13,11 @@ class Phase01Subdomains(BasePhase):
         all_subs = set()
 
         # --- PASSIVE SOURCES ---
-        tools = [
-            ("subfinder", f"subfinder -d {self.engine.domain} -silent -all -o {self.outdir}/subfinder.txt"),
-            ("assetfinder", f"assetfinder --subs-only {self.engine.domain} > {self.outdir}/assetfinder.txt"),
-        ]
+        tools = []
+        if self.tool_available("subfinder"):
+            tools.append(("subfinder", f"subfinder -d {self.engine.domain} -silent -all -o {self.outdir}/subfinder.txt"))
+        if self.tool_available("assetfinder"):
+            tools.append(("assetfinder", f"assetfinder --subs-only {self.engine.domain} > {self.outdir}/assetfinder.txt"))
         if self.tool_available("amass"):
             tools.append(("amass", f"amass enum -passive -d {self.engine.domain} -o {self.outdir}/amass_raw.txt"))
 
