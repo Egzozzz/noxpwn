@@ -1,8 +1,8 @@
 # NOXPWN - Auto Bug Bounty Engine
 
-> **17 Phases · 32 Tools · Fully Automated Reconnaissance & Vulnerability Scanning**
+> **17 Phases · 31 Tools · Fully Automated Reconnaissance & Vulnerability Scanning**
 
-NOXPWN is an automated bug bounty and penetration testing tool that chains 32 industry-standard security tools into a single pipeline. It handles everything from subdomain discovery to vulnerability scanning with zero manual intervention.
+NOXPWN is an automated bug bounty and penetration testing tool that chains 31 industry-standard security tools into a single pipeline. It handles everything from subdomain discovery to vulnerability scanning with zero manual intervention.
 
 ---
 
@@ -17,7 +17,7 @@ NOXPWN is an automated bug bounty and penetration testing tool that chains 32 in
 | 05 | WAF Detection | wafw00f |
 | 06 | Screenshots | gowitness (smart mode) |
 | 07 | URL Collection | katana, gau, waybackurls, hakrawler, gospider |
-| 08 | JavaScript Analysis | subjs, trufflehog, jsleak, LinkFinder, mantra, gf |
+| 08 | JavaScript Analysis | subjs, jsleak, LinkFinder, mantra, gf |
 | 09 | Directory Bruteforce | ffuf, feroxbuster |
 | 10 | Parameter Discovery | arjun, x8 |
 | 11 | API & GraphQL | x8, nuclei (graphql/api/swagger tags), curl |
@@ -143,7 +143,7 @@ noxpwn_output/
 
 ## Tools
 
-### Required (26 tools)
+### Required (25 tools)
 
 | Tool | Type | Purpose |
 |------|------|---------|
@@ -162,7 +162,6 @@ noxpwn_output/
 | gospider | go | URL crawling |
 | waybackurls | go | URL collection |
 | subjs | go | JS file discovery |
-| trufflehog | go | Secret scanning |
 | jsleak | go | JS endpoint extraction |
 | ffuf | go | Directory bruteforce |
 | arjun | pip | Parameter discovery |
@@ -221,4 +220,4 @@ MIT License - see [LICENSE](LICENSE) file.
 
 ## Credits
 
-NOXPWN chains together 32 open-source security tools created by the amazing security community. Special thanks to all tool authors.
+NOXPWN chains together 31 open-source security tools created by the amazing security community. Special thanks to all tool authors.

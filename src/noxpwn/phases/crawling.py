@@ -161,27 +161,6 @@ class Phase08Js(BasePhase):
                 secrets.update(jr)
                 good(f"jsleak: {len(jr)} potential secrets/endpoints")
 
-        # trufflehog — scan downloaded JS files for secrets
-        if self.tool_available("trufflehog") and downloaded:
-            self.run_tool(
-                f"trufflehog filesystem --directory={js_dir} --no-update "
-                f"--results=verified,unknown --json > {self.outdir}/trufflehog.json 2>/dev/null",
-                timeout=120,
-            )
-            th_file = self.outdir / "trufflehog.json"
-            if th_file.exists():
-                th_data = read_file(th_file)
-                for line in th_data:
-                    try:
-                        import json
-                        entry = json.loads(line)
-                        desc = entry.get("Description", entry.get("detector_name", "secret"))
-                        loc = entry.get("Raw", {}).get("file", "") or entry.get("SourceMetadata", {}).get("Data", {}).get("files", [""])[0]
-                        secrets.add(f"{desc}: {loc}")
-                    except:
-                        secrets.add(line[:200])
-                good(f"trufflehog: secrets scanned in {len(downloaded)} files")
-
         # LinkFinder — extract endpoints from JS
         lf_avail = self.tool_available("linkfinder") or os.path.exists("LinkFinder/linkfinder.py")
         if lf_avail:

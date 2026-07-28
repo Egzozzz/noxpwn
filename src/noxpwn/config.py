@@ -40,7 +40,6 @@ TOOL_CONFIG = {
     "waybackurls": {"timeout": 300, "flags": ""},
     "subjs": {"timeout": 120, "flags": ""},
     "jsleak": {"timeout": 120, "flags": ""},
-    "trufflehog": {"timeout": 120, "flags": "--no-update"},
     "linkfinder": {"timeout": 60, "flags": "-o cli"},
     "mantra": {"timeout": 120, "flags": ""},
     "ffuf": {"timeout": 300, "flags": "-mc all -fc 404,403 -t 50 -recursion -recursion-depth 3"},

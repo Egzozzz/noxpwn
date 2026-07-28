@@ -12,7 +12,7 @@ class BasePhase:
         self.outdir = None
 
     def tool_available(self, tool_name):
-        if tool_name in self.engine.skip_tools:
+        if tool_name.lower() in self.engine.skip_tools:
             return False
         return check_tool(tool_name)
 

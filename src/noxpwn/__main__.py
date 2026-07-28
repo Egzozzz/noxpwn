@@ -6,6 +6,7 @@ from pathlib import Path
 from .utils import banner, info, warn, error, good, c, check_tool as util_check_tool
 from .installer import auto_install_missing, REQUIRED_TOOLS, OPTIONAL_TOOLS, ALL_TOOLS, install_tool
 from .engine import NoxPwnEngine
+from . import __version__ as VERSION
 
 
 def update_noxpwn():
@@ -52,12 +53,17 @@ Examples:
     parser.add_argument("--list-tools", action="store_true", help="List all tools used by noxpwn")
     parser.add_argument("--install-all", action="store_true", help="Install all tools and exit")
     parser.add_argument("--quick", action="store_true", help="Quick mode (skip slow scans)")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    parser.add_argument("--verbose", action="store_true", help="Verbose output")
+    parser.add_argument("-v", "--version", action="store_true", help="Show version and exit")
     parser.add_argument("--from-phase", type=int, default=1, help="Start from specific phase number")
     parser.add_argument("--skip-tools", help="Comma-separated tools to skip (e.g. amass,gospider,ffuf)")
     parser.add_argument("--update", action="store_true", help="Update noxpwn to latest version from GitHub")
 
     args = parser.parse_args()
+
+    if args.version:
+        print(f"noxpwn v{VERSION}")
+        return
 
     if args.update:
         update_noxpwn()
@@ -98,7 +104,7 @@ Examples:
         info("Checking required tools...")
         all_tool_names = list(REQUIRED_TOOLS.keys()) + list(OPTIONAL_TOOLS.keys())
         if skip_tools:
-            all_tool_names = [t for t in all_tool_names if t not in skip_tools]
+            all_tool_names = [t for t in all_tool_names if t.lower() not in skip_tools]
             info(f"Skipping excluded tools: {', '.join(skip_tools)}")
         auto_install_missing(all_tool_names)
 

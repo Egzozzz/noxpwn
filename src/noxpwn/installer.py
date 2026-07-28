@@ -27,7 +27,6 @@ REQUIRED_TOOLS = {
     "waybackurls": {"type": "go", "repo": "github.com/tomnomnom/waybackurls@latest"},
     # JS Analysis
     "subjs": {"type": "go", "repo": "github.com/lc/subjs@latest"},
-    "trufflehog": {"type": "go", "repo": "github.com/trufflesecurity/trufflehog@latest"},
     "jsleak": {"type": "go", "repo": "github.com/channyein1337/jsleak@latest"},
     # Directory Bruteforce
     "ffuf": {"type": "go", "repo": "github.com/ffuf/ffuf/v2@latest"},
