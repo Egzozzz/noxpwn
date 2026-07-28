@@ -76,7 +76,7 @@ class Phase07Urls(BasePhase):
             for host in live_hosts[:3]:
                 h = host.replace("https://", "").replace("http://", "").split("/")[0]
                 hf = self.outdir / f"hakrawler_{h}.txt"
-                self.run_tool(f"echo '{host}' | hakrawler -silent -depth 3 -insecure >> {hf}", timeout=300)
+                self.run_tool(f"echo '{host}' | hakrawler -silent -d 3 -insecure >> {hf}", timeout=300)
                 if hf.exists():
                     urls = read_file(hf)
                     all_urls.update(urls)

@@ -119,6 +119,9 @@ def merge_lists(files):
 def check_tool(name):
     if shutil.which(name):
         return True
+    lname = name.lower()
+    if lname != name and shutil.which(lname):
+        return True
     go_paths = [
         os.path.expanduser("~/go/bin"),
         "/usr/local/go/bin",
@@ -126,6 +129,8 @@ def check_tool(name):
     ]
     for gp in go_paths:
         if os.path.exists(os.path.join(gp, name)):
+            return True
+        if lname != name and os.path.exists(os.path.join(gp, lname)):
             return True
     python_module_map = {
         "corsy": ["corsy"],

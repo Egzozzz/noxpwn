@@ -27,13 +27,13 @@ REQUIRED_TOOLS = {
     "waybackurls": {"type": "go", "repo": "github.com/tomnomnom/waybackurls@latest"},
     # JS Analysis
     "subjs": {"type": "go", "repo": "github.com/lc/subjs@latest"},
-    "trufflehog": {"type": "go", "repo": "github.com/trufflesecurity/trufflehog/v3@latest"},
+    "trufflehog": {"type": "go", "repo": "github.com/trufflesecurity/trufflehog@latest"},
     "jsleak": {"type": "go", "repo": "github.com/channyein1337/jsleak@latest"},
     # Directory Bruteforce
     "ffuf": {"type": "go", "repo": "github.com/ffuf/ffuf/v2@latest"},
     # Parameter Discovery
     "arjun": {"type": "pip", "repo": "arjun"},
-    "x8": {"type": "go", "repo": "github.com/Sh1Yo/x8@latest"},
+    "x8": {"type": "cargo", "repo": "x8"},
     # Pattern Matching
     "gf": {"type": "go", "repo": "github.com/tomnomnom/gf@latest"},
     # CORS
@@ -76,6 +76,10 @@ def check_go():
     return check_tool("go")
 
 
+def check_cargo():
+    return check_tool("cargo")
+
+
 def pip_install(pkg_name):
     rc, out, err = run_cmd(f"pip3 install {pkg_name}", timeout=120, live=True)
     return rc == 0
@@ -93,6 +97,11 @@ def go_install(repo):
         rc3, _, _ = run_cmd(f"go install {alt}", timeout=300, live=True)
         return rc3 == 0
     return False
+
+
+def cargo_install(pkg_name):
+    rc, out, err = run_cmd(f"cargo install {pkg_name}", timeout=600, live=True)
+    return rc == 0
 
 
 def git_install(repo, name):
@@ -121,6 +130,11 @@ def install_tool(name):
             return go_install(repo)
         elif ttype == "pip":
             return pip_install(repo)
+        elif ttype == "cargo":
+            if not check_cargo():
+                error("Cargo/Rust is not installed. Install Rust first: https://rustup.rs/")
+                return False
+            return cargo_install(repo)
         elif ttype == "git":
             return git_install(repo, name)
         elif ttype == "apt":

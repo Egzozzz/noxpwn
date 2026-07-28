@@ -1,58 +1,57 @@
-# 🔥 NOXPWN - Auto Bug Bounty Engine
+# NOXPWN - Auto Bug Bounty Engine
 
-> **17 Phases · 25+ Tools · Fully Automated Reconnaissance & Vulnerability Scanning**
+> **17 Phases · 32 Tools · Fully Automated Reconnaissance & Vulnerability Scanning**
 
-NOXPWN is an automated bug bounty and penetration testing tool that chains 25+ industry-standard security tools into a single pipeline. Inspired by bbot and reconftw, it handles everything from subdomain discovery to vulnerability scanning with zero manual intervention.
+NOXPWN is an automated bug bounty and penetration testing tool that chains 32 industry-standard security tools into a single pipeline. It handles everything from subdomain discovery to vulnerability scanning with zero manual intervention.
 
 ---
 
-## ✨ Features
+## Features
 
 | Phase | Module | Tools Used |
 |-------|--------|------------|
-| 01 | Subdomain Discovery | subfinder, assetfinder, amass |
+| 01 | Subdomain Discovery | subfinder, assetfinder, amass, crt.sh, dnsx, gotator, puredns |
 | 02 | Port Scanning | naabu, nmap |
 | 03 | Live Host Detection | httpx + tech-detect |
-| 04 | Subdomain Takeover | subzy, nuclei |
+| 04 | Subdomain Takeover | subzy, nuclei (takeover tags) |
 | 05 | WAF Detection | wafw00f |
 | 06 | Screenshots | gowitness (smart mode) |
-| 07 | URL Collection | katana, hakrawler, gospider, waybackurls |
-| 08 | JavaScript Analysis | subjs, LinkFinder, SecretFinder, mantra |
+| 07 | URL Collection | katana, gau, waybackurls, hakrawler, gospider |
+| 08 | JavaScript Analysis | subjs, trufflehog, jsleak, LinkFinder, mantra, gf |
 | 09 | Directory Bruteforce | ffuf, feroxbuster |
-| 10 | Parameter Discovery | arjun |
-| 11 | API & GraphQL | kiterunner, graphw00f |
+| 10 | Parameter Discovery | arjun, x8 |
+| 11 | API & GraphQL | x8, nuclei (graphql/api/swagger tags), curl |
 | 12 | Parameterized URLs | httpx filtering |
-| 13 | Pattern Classification | gf (xss/sqli/lfi/ssrf/rce) |
-| 14 | CORS Misconfiguration | corsy |
+| 13 | Pattern Classification | gf (9 patterns), regex secrets |
+| 14 | CORS Misconfiguration | CorsMe, curl fallback |
 | 15 | Vulnerability Scan | nuclei (critical/high/medium) |
 | 16 | XSS Report | dalfox suggestions |
 | 17 | SQLi Report | sqlmap suggestions |
 
 **Smart Features:**
-- 🧠 **Smart Screenshots**: Full screenshot mode only when critical findings are discovered
-- 🔍 **XSS/SQLi Detection**: Flags potential vulnerabilities with manual testing commands
-- 📦 **Auto-Install**: Detects and installs missing tools automatically
-- ⚡ **Quick Mode**: Skips slow scans for rapid recon
-- 🚫 **Skip Tools**: Exclude specific tools with `--skip-tools`
-- 🔄 **Self-Update**: Update to latest version with `--update`
-- 📊 **Detailed Report**: Generates comprehensive scan reports
+- Smart Screenshots: Full screenshot mode only when critical findings are discovered
+- XSS/SQLi Detection: Flags potential vulnerabilities with manual testing commands
+- Auto-Install: Detects and installs missing tools automatically
+- Quick Mode: Skips slow scans for rapid recon
+- Skip Tools: Exclude specific tools with `--skip-tools`
+- Self-Update: Update to latest version with `--update`
+- Per-Phase Error Isolation: One crash doesn't stop the pipeline
+- Detailed Report: Generates comprehensive scan reports
 
 ---
 
-## 🚀 Installation
+## Installation
 
 ### Prerequisites
 - Python 3.7+
 - Go (for Go-based tools)
-- Linux/WSL/Kali environment (recommended)
+- Rust/Cargo (for x8)
+- Linux/Kali environment (recommended)
 
 ### Quick Install (run directly, no setup needed)
 ```bash
-# Clone the repository
 git clone https://github.com/Egzozzz/noxpwn.git
 cd noxpwn
-
-# Make the entry point executable
 chmod +x noxpwn
 
 # Run directly
@@ -71,14 +70,9 @@ noxpwn -u https://example.com
 ./noxpwn --install-all
 ```
 
-### List Available Tools
-```bash
-./noxpwn --list-tools
-```
-
 ---
 
-## 📖 Usage
+## Usage
 
 ### Basic Scan
 ```bash
@@ -122,72 +116,78 @@ noxpwn -u https://example.com
 
 ---
 
-## 📁 Output Structure
+## Output Structure
 
 ```
 noxpwn_output/
 └── target.com/
-    ├── 01-subdomains/        # Subdomain lists
-    ├── 02-ports/             # Port scan results
-    ├── 03-live-hosts/        # Live hosts + tech stack
-    ├── 04-takeover/          # Subdomain takeover findings
-    ├── 05-waf/               # WAF detection results
-    ├── 06-screenshots/       # Gowitness screenshots
-    ├── 07-urls/              # Collected URLs
-    ├── 08-js-analysis/       # JS files, endpoints, secrets
-    ├── 09-directories/       # Discovered paths
-    ├── 10-parameters/        # Arjun parameter findings
-    ├── 11-api/               # API endpoints
-    ├── 12-param-urls/        # Parameterized URLs
-    ├── 13-patterns/          # GF pattern matches
-    ├── 14-cors/              # CORS findings
-    ├── 15-nuclei/            # Nuclei scan results
-    └── report/               # Scan report
+    ├── 01-subdomain-discovery/    # Subdomain lists
+    ├── 02-port-scanning/          # Port scan results
+    ├── 03-live-hosts/             # Live hosts + tech stack
+    ├── 04-subdomain-takeover/     # Takeover findings
+    ├── 05-waf-detection/          # WAF results
+    ├── 06-screenshots/            # Gowitness screenshots
+    ├── 07-urls/                   # Collected URLs
+    ├── 08-js-analysis/            # JS files, endpoints, secrets
+    ├── 09-directories/            # Discovered paths
+    ├── 10-parameters/             # Parameter findings
+    ├── 11-api/                    # API endpoints
+    ├── 12-param-urls/             # Parameterized URLs
+    ├── 13-pattern-classification/ # GF pattern matches
+    ├── 14-cors/                   # CORS findings
+    ├── 15-vulnerability-scan/     # Nuclei scan results
+    └── report/                    # Scan report
 ```
 
 ---
 
-## 🔧 Requirements
+## Tools
 
-### Required Tools (auto-installable)
-| Tool | Installation | Purpose |
-|------|-------------|---------|
-| subfinder | go install | Subdomain discovery |
-| httpx | go install | Live host detection |
-| naabu | go install | Port scanning |
-| nuclei | go install | Vulnerability scanning |
-| katana | go install | URL crawling |
-| subzy | go install | Takeover detection |
-| gf | go install | Pattern matching |
-| ffuf | go install | Directory bruteforce |
-| assetfinder | go install | Subdomain discovery |
-| waybackurls | go install | URL collection |
-| gowitness | go install | Screenshots |
-| dalfox | go install | XSS scanning |
-| kiterunner | go install | API bruteforce |
-| gospider | go install | URL crawling |
-| hakrawler | go install | URL crawling |
-| wafw00f | pip install | WAF detection |
-| arjun | pip install | Parameter discovery |
-| corsy | pip install | CORS checking |
-| nmap | apt install | Port scanning |
-| sqlmap | pip install | SQLi detection |
+### Required (26 tools)
 
-### Optional Tools
-| Tool | Installation | Purpose |
-|------|-------------|---------|
-| amass | go install | Subdomain discovery |
-| graphw00f | pip install (GitHub) | GraphQL detection |
-| secretfinder | pip install (GitHub) | JS secret discovery |
-| linkfinder | pip install (GitHub) | JS endpoint discovery |
-| subjs | go install | JS file discovery |
-| feroxbuster | apt install | Directory bruteforce |
-| mantra | go install | JS secret analysis |
-| unfurl | go install | URL parsing |
+| Tool | Type | Purpose |
+|------|------|---------|
+| subfinder | go | Subdomain discovery |
+| assetfinder | go | Subdomain discovery |
+| dnsx | go | DNS resolution |
+| naabu | go | Port scanning |
+| nmap | apt | Service/script scanning |
+| httpx | go | Live host detection + tech |
+| subzy | go | Subdomain takeover |
+| wafw00f | pip | WAF detection |
+| gowitness | go | Screenshots |
+| katana | go | URL crawling |
+| gau | go | URL collection |
+| hakrawler | go | URL crawling |
+| gospider | go | URL crawling |
+| waybackurls | go | URL collection |
+| subjs | go | JS file discovery |
+| trufflehog | go | Secret scanning |
+| jsleak | go | JS endpoint extraction |
+| ffuf | go | Directory bruteforce |
+| arjun | pip | Parameter discovery |
+| x8 | cargo | Hidden parameter discovery |
+| gf | go | Pattern matching |
+| CorsMe | go | CORS misconfiguration |
+| nuclei | go | Vulnerability scanning |
+| dalfox | go | XSS scanning |
+| sqlmap | pip | SQLi detection |
+| mantra | go | JS secret analysis |
+
+### Optional (6 tools)
+
+| Tool | Type | Purpose |
+|------|------|---------|
+| amass | go | Deep subdomain discovery |
+| gotator | go | Subdomain permutation |
+| puredns | go | DNS resolution |
+| linkfinder | git+pip | JS endpoint extraction |
+| feroxbuster | apt | Directory bruteforce |
+| unfurl | go | URL parsing |
 
 ---
 
-## 🛡️ Supported Attack Types
+## Supported Attack Types
 
 - Subdomain Enumeration
 - Live Host Discovery
@@ -207,18 +207,18 @@ noxpwn_output/
 
 ---
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 This tool is for **authorized security testing only**. Use only on systems you own or have explicit permission to test. Unauthorized use may violate applicable laws.
 
 ---
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) file.
 
 ---
 
-## 🙏 Credits
+## Credits
 
-NOXPWN chains together 25+ open-source security tools created by the amazing security community. Special thanks to all tool authors.
+NOXPWN chains together 32 open-source security tools created by the amazing security community. Special thanks to all tool authors.

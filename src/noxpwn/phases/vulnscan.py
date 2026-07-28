@@ -14,7 +14,7 @@ class Phase14Cors(BasePhase):
 
         if self.tool_available("CorsMe"):
             cf = self.outdir / "cors_findings.txt"
-            self.run_tool(f"CorsMe -i {hosts_file} -o {cf}", timeout=120)
+            self.run_tool(f"cat {hosts_file} | CorsMe -t 50 -output {cf}", timeout=120)
             if cf.exists():
                 findings = read_file(cf)
                 if findings:

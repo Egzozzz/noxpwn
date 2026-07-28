@@ -80,7 +80,7 @@ class Phase09Directories(BasePhase):
                 clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                 ferox_out = self.outdir / f"ferox_{clean}.txt"
                 self.run_tool(
-                    f"feroxbuster -u {host} -w {wordlist} -d 3 -t 30 --auto-bat "
+                    f"feroxbuster -u {host} -w {wordlist} -d 3 -t 30 --auto-tune "
                     f"--silent -o {ferox_out}",
                     timeout=300,
                 )
