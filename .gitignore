@@ -25,3 +25,17 @@ Thumbs.db
 .env
 venv/
 .venv/
+
+# Python version
+.python-version
+
+# Temp
+*.log
+*.tmp
+*.bak
+
+# Test
+.pytest_cache/
+htmlcov/
+.coverage
+coverage/
