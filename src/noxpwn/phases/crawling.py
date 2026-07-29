@@ -86,8 +86,8 @@ class Phase07Urls(BasePhase):
         if self.tool_available("gospider"):
             gd = self.outdir / "gospider_output"
             self.run_tool(
-                f"gospider -S {hosts_file} --recursive -d 3 --no-redirect -c 20 -t 10 "
-                f"--blacklist jpg,jpeg,gif,css,png,svg,woff,ttf,ico,pdf --output {gd}",
+                f"gospider -S {hosts_file} -d 3 --no-redirect -c 20 -t 10 "
+                f"--blacklist jpg,jpeg,gif,css,png,svg,woff,ttf,ico,pdf -o {gd}",
                 timeout=600,
             )
             if gd.is_dir():
@@ -151,10 +151,10 @@ class Phase08Js(BasePhase):
                     js_urls = list(set(js_urls))
                     save_to_file(self.outdir / "js_files.txt", js_urls)
 
-        # jsleak — extract endpoints + secrets from JS
+        # jsleak — extract endpoints + secrets from JS (stdin pipe)
         if self.tool_available("jsleak") and js_urls:
             jf = self.outdir / "js_files.txt"
-            self.run_tool(f"jsleak -f {jf} -o {self.outdir}/jsleak_output.txt", timeout=120)
+            self.run_tool(f"cat {jf} | jsleak -l -s > {self.outdir}/jsleak_output.txt", timeout=120)
             jsleak_file = self.outdir / "jsleak_output.txt"
             if jsleak_file.exists():
                 jr = read_file(jsleak_file)

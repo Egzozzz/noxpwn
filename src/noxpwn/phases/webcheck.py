@@ -15,7 +15,7 @@ class Phase04Takeover(BasePhase):
 
         if self.tool_available("subzy"):
             results = self.run_tool(
-                f"subzy run --targets {hosts_file} --hide_fails --vuln",
+                f"subzy run --targets {hosts_file} --hide_fails",
                 timeout=300,
             )
             for line in results:
@@ -83,7 +83,7 @@ class Phase06Screenshots(BasePhase):
         hosts_file = self.outdir / "targets.txt"
         save_to_file(hosts_file, targets)
         self.run_tool(
-            f"gowitness file -f {hosts_file} -P {self.outdir}/ --no-http",
+            f"gowitness scan file -f {hosts_file} --screenshot-path {self.outdir}/ 2>/dev/null",
             timeout=300,
         )
         good(f"Screenshots saved: {self.outdir}")
