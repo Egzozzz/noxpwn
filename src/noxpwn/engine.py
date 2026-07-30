@@ -17,6 +17,7 @@ from .phases import (
     Phase11Api, Phase12ParamUrls,
     Phase13Classify,
     Phase14Cors, Phase15Nuclei, Phase16Xss, Phase17Sqli,
+    Phase18OpenRedirect, Phase19ExposedFiles,
 )
 
 
@@ -214,6 +215,14 @@ class NoxPwnEngine:
         # === PHASE 17: SQLi ===
         if self.should_run(17):
             self.safe_run_phase(Phase17Sqli(self))
+
+        # === PHASE 18: Open Redirect ===
+        if self.should_run(18) and live_hosts:
+            self.safe_run_phase(Phase18OpenRedirect(self), live_hosts)
+
+        # === PHASE 19: Exposed Files ===
+        if self.should_run(19) and live_hosts:
+            self.safe_run_phase(Phase19ExposedFiles(self), live_hosts)
 
         report = self.generate_report()
 

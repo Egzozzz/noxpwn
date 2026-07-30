@@ -127,6 +127,39 @@ class Phase01Subdomains(BasePhase):
                             all_subs.update(perm_resolved)
                             good(f"dnsx: {len(perm_resolved)} valid permutations")
 
+        # --- BRUTEFORCE with puredns (deeper coverage) ---
+        if self.tool_available("puredns") and self.engine.should_run(1):
+            # Find a DNS wordlist for bruteforcing
+            dns_wordlists = [
+                "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt",
+                "/usr/share/seclists/Discovery/DNS/deepmagic.com-prefixes-top500.txt",
+                "/usr/share/seclists/Discovery/DNS/bitquark-subdomains-top100000.txt",
+                "/usr/share/wordlists/dirb/common.txt",
+            ]
+            dns_wl = None
+            for p in dns_wordlists:
+                if os.path.exists(p):
+                    dns_wl = p
+                    break
+            if dns_wl:
+                info(f"Puredns bruteforce: {dns_wl}")
+                bf_file = self.outdir / "bruteforce_subs.txt"
+                self.run_tool(
+                    f"puredns bruteforce {dns_wl} {self.engine.domain} --write {bf_file}",
+                    timeout=300,
+                )
+                if bf_file.exists():
+                    bf_subs = [l.strip().lower() for l in read_file(bf_file) if l.strip()]
+                    if bf_subs:
+                        old_count = len(all_subs)
+                        all_subs.update(bf_subs)
+                        new_count = len(bf_subs) - (len(all_subs) - old_count)
+                        good(f"puredns bruteforce: {new_count} new subdomains (total: {len(bf_subs)})")
+                    else:
+                        info("puredns bruteforce: no new subdomains found")
+            else:
+                info("No DNS wordlist found for bruteforce, skipping")
+
         final = sorted(all_subs)
         save_to_file(self.outdir / "all_subs.txt", final)
         good(f"Total unique subdomains: {len(final)}")

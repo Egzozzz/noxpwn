@@ -5,4 +5,4 @@ from .crawling import Phase07Urls, Phase08Js
 from .bruteforce import Phase09Directories, Phase10Params
 from .apicheck import Phase11Api, Phase12ParamUrls
 from .analysis import Phase13Classify
-from .vulnscan import Phase14Cors, Phase15Nuclei, Phase16Xss, Phase17Sqli
+from .vulnscan import Phase14Cors, Phase15Nuclei, Phase16Xss, Phase17Sqli, Phase18OpenRedirect, Phase19ExposedFiles
