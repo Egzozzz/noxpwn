@@ -76,7 +76,7 @@ class Phase07Urls(BasePhase):
             for host in live_hosts[:3]:
                 h = host.replace("https://", "").replace("http://", "").split("/")[0]
                 hf = self.outdir / f"hakrawler_{h}.txt"
-                self.run_tool(f"echo '{host}' | hakrawler -silent -d 3 -insecure >> {hf}", timeout=300)
+                self.run_tool(f"echo '{host}' | hakrawler -d 3 -insecure >> {hf}", timeout=300)
                 if hf.exists():
                     urls = read_file(hf)
                     all_urls.update(urls)
@@ -87,7 +87,7 @@ class Phase07Urls(BasePhase):
             gd = self.outdir / "gospider_output"
             self.run_tool(
                 f"gospider -S {hosts_file} -d 3 --no-redirect -c 20 -t 10 "
-                f"--blacklist jpg,jpeg,gif,css,png,svg,woff,ttf,ico,pdf -o {gd}",
+                f"--blacklist '.(jpg|jpeg|gif|css|png|svg|woff|ttf|ico|pdf)' -o {gd}",
                 timeout=600,
             )
             if gd.is_dir():

@@ -76,8 +76,8 @@ class Phase16Xss(BasePhase):
         if candidates:
             warn(f"🔥 {len(candidates)} XSS candidates found!")
             print(f"\n  {c('Verify with dalfox:', 'yellow')}")
-            print(f"    {c('dalfox url <URL> --pipe', 'cyan')}")
-            print(f"    {c('dalfox file {}/xss_candidates.txt --pipe'.format(self.outdir), 'cyan')}")
+            print(f"    {c('dalfox scan <URL>', 'cyan')}")
+            print(f"    {c('cat {}/xss_candidates.txt | dalfox scan'.format(self.outdir), 'cyan')}")
             print(f"\n  {c('Top candidates:', 'bold')}")
             for u in candidates[:10]:
                 print(f"    {c('→', 'red')} {u}")

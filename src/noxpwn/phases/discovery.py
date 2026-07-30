@@ -110,7 +110,7 @@ class Phase01Subdomains(BasePhase):
                     # Resolve permutations
                     if self.tool_available("puredns"):
                         self.run_tool(
-                            f"puredns resolve {perm_file} -o {self.outdir}/perm_resolved.txt",
+                            f"puredns resolve {perm_file} --write {self.outdir}/perm_resolved.txt",
                             timeout=300,
                         )
                         perm_resolved = [l.strip().lower() for l in read_file(self.outdir / "perm_resolved.txt") if l.strip()]
