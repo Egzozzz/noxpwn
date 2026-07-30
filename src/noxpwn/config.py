@@ -52,6 +52,7 @@ TOOL_CONFIG = {
     "sqlmap": {"timeout": 600, "flags": "--batch --risk=3 --level=3"},
     "gotator": {"timeout": 300, "flags": "-depth 1 -numbers 5 -mindup -silent"},
     "puredns": {"timeout": 300, "flags": ""},
+    "knockpy": {"timeout": 600, "flags": "--recon --silent"},
 }
 
 GRAPHQL_PATHS = [

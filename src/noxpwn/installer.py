@@ -52,6 +52,7 @@ OPTIONAL_TOOLS = {
     "mantra": {"type": "go", "repo": "github.com/MrEmpy/mantra@latest"},
     "feroxbuster": {"type": "apt", "repo": "feroxbuster"},
     "unfurl": {"type": "go", "repo": "github.com/tomnomnom/unfurl@latest"},
+    "knockpy": {"type": "git", "repo": "https://github.com/guelfoweb/knockpy.git"},
 }
 
 ALL_TOOLS = {**REQUIRED_TOOLS, **OPTIONAL_TOOLS}
@@ -104,9 +105,13 @@ def cargo_install(pkg_name):
 
 
 def git_install(repo, name):
-    rc, out, err = run_cmd(f"git clone {repo} /tmp/{name}", timeout=120, live=True)
+    import os as _os
+    tmpdir = f"/tmp/{name}"
+    if _os.path.exists(tmpdir):
+        run_cmd(f"rm -rf {tmpdir}", timeout=10)
+    rc, out, err = run_cmd(f"git clone {repo} {tmpdir}", timeout=120, live=True)
     if rc == 0:
-        rc2, _, _ = run_cmd(f"pip3 install -e /tmp/{name}", timeout=60, live=True)
+        rc2, _, _ = run_cmd(f"pip3 install -e {tmpdir}", timeout=60, live=True)
         return rc2 == 0
     return False
 

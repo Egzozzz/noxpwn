@@ -140,6 +140,7 @@ def check_tool(name):
         "secretfinder": ["secretfinder", "SecretFinder"],
         "graphw00f": ["graphw00f"],
         "mantra": ["mantra"],
+        "knockpy": ["knockpy"],
     }
     if name in python_module_map:
         for mod in python_module_map[name]:

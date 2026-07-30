@@ -31,6 +31,40 @@ class Phase01Subdomains(BasePhase):
             if subs:
                 good(f"{name}: {len(subs)} subdomains")
 
+        # --- KNOCKPY (passive recon + bruteforce) ---
+        if self.tool_available("knockpy"):
+            info("Running knockpy recon...")
+            kf = self.outdir / "knockpy_output.json"
+            rc, raw, _ = run_cmd(
+                f"knockpy -d {self.engine.domain} --recon --json 2>/dev/null",
+                timeout=600, capture=True, live=False,
+            )
+            if raw:
+                save_to_file(kf, raw)
+                try:
+                    data = json.loads(raw)
+                    if isinstance(data, list):
+                        ks = [e.get("domain", "").lower() for e in data if e.get("domain")]
+                    elif isinstance(data, dict):
+                        ks = [k.lower() for k in data.keys()]
+                    else:
+                        ks = []
+                    if ks:
+                        old_count = len(all_subs)
+                        all_subs.update(ks)
+                        good(f"knockpy: {len(ks)} subdomains ({len(all_subs) - old_count} new)")
+                    else:
+                        info("knockpy: no subdomains found")
+                except json.JSONDecodeError:
+                    warn("knockpy: JSON parse failed, falling back to text")
+                    lines = [l.strip().lower() for l in raw.split("\n") if l.strip()]
+                    domain_filter = self.engine.domain
+                    ks = [l for l in lines if domain_filter in l and not l.startswith(("[", "(", "╭", "╰", "│", "─", "knockpy", "usage"))]
+                    if ks:
+                        old_count = len(all_subs)
+                        all_subs.update(ks)
+                        good(f"knockpy (text): {len(ks)} subdomains")
+
         # --- CERT.SH (historical subdomains) ---
         info("Fetching crt.sh certificate transparency logs...")
         rc, out, _ = run_cmd(
