@@ -26,8 +26,10 @@ class Phase02Ports(BasePhase):
 
         # nmap — service + script scan on discovered ports
         if self.tool_available("nmap") and open_ports:
+            # naabu outputs host:port — extract unique hosts for nmap
+            hosts = sorted(set(line.split(":")[0].strip() for line in open_ports if ":" in line))
             targets_file = self.outdir / "nmap_targets.txt"
-            save_to_file(targets_file, open_ports)
+            save_to_file(targets_file, hosts)
             self.run_tool(
                 f"nmap -sV -sC -T4 -iL {targets_file} -oN {self.outdir}/nmap_scan.txt",
                 timeout=900,

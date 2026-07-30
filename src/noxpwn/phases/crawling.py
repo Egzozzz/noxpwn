@@ -121,17 +121,19 @@ class Phase08Js(BasePhase):
         info(f"Found {len(js_urls)} JS file URLs")
 
         # Download JS files for local analysis
+        import urllib.request
         js_dir = ensure_dir(self.outdir / "downloaded_js")
         downloaded = []
-        if js_urls:
-            js_list_file = self.outdir / "js_download_list.txt"
-            save_to_file(js_list_file, js_urls[:50])
-            self.run_tool(f"wget -q -P {js_dir} -i {js_list_file} 2>/dev/null || curl -sk -O --output-dir {js_dir} -K {js_list_file} 2>/dev/null", timeout=120, live=False)
-            # Collect any downloaded files
-            if js_dir.is_dir():
-                for f in js_dir.iterdir():
-                    if f.is_file() and f.stat().st_size > 100:
-                        downloaded.append(str(f))
+        for url in js_urls[:50]:
+            try:
+                fname = url.rsplit("/", 1)[-1].split("?")[0] or "file.js"
+                dst = js_dir / fname
+                urllib.request.urlretrieve(url, dst)
+                if dst.stat().st_size > 100:
+                    downloaded.append(str(dst))
+            except:
+                pass
+        if downloaded:
             info(f"Downloaded {len(downloaded)} JS files for local analysis")
 
         endpoints = set()

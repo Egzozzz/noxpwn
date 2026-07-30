@@ -35,9 +35,9 @@ class Phase09Directories(BasePhase):
                 clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                 ffuf_out = f"{self.outdir}/ffuf_{clean}.json"
                 self.run_tool(
-                    f"ffuf -u {host}/FUZZ -w {wordlist} -mc all -fc 404,403 "
-                    f"-t 50 -recursion -recursion-depth 3 -maxtime 120 -s -o {ffuf_out}",
-                    timeout=300,
+                    f"ffuf -u {host}/FUZZ -w {wordlist} -mc 200,204,301,302,307,401,403,405,500,501 "
+                    f"-t 50 -recursion -recursion-depth 2 -maxtime 300 -s -of json -o {ffuf_out}",
+                    timeout=600,
                 )
                 if os.path.exists(ffuf_out):
                     try:
@@ -59,8 +59,8 @@ class Phase09Directories(BasePhase):
                     clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                     ffuf_api_out = f"{self.outdir}/ffuf_api_{clean}.json"
                     self.run_tool(
-                        f"ffuf -u {host}/FUZZ -w {api_wordlist} -mc all -fc 404,403 "
-                        f"-t 50 -s -o {ffuf_api_out}",
+                    f"ffuf -u {host}/FUZZ -w {api_wordlist} -mc 200,204,301,302,307,401,403,405,500,501 "
+                    f"-t 50 -s -of json -o {ffuf_api_out}",
                         timeout=300,
                     )
                     if os.path.exists(ffuf_api_out):
@@ -114,7 +114,7 @@ class Phase10Params(BasePhase):
                 clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                 outf = self.outdir / f"arjun_{clean}.json"
                 self.run_tool(
-                    f"arjun -u {host} --passive -m GET -o {outf} --quiet",
+                    f"arjun -u {host} -m GET -oJ {outf} 2>/dev/null",
                     timeout=300,
                 )
                 if outf.exists():
@@ -144,7 +144,7 @@ class Phase10Params(BasePhase):
                 clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                 x8f = self.outdir / f"x8_{clean}.txt"
                 self.run_tool(
-                    f"x8 -u {host} -w {param_wl} -o {x8f} --disable-progress-bar -v 0",
+                    f"x8 -u {host.rstrip('/') + '/'} -w {param_wl} -o {x8f} --disable-progress-bar",
                     timeout=300,
                 )
                 if x8f.exists():

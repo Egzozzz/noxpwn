@@ -28,7 +28,7 @@ class Phase11Api(BasePhase):
             for host in live_hosts[:5]:
                 clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                 x8f = self.outdir / f"x8_api_{clean}.txt"
-                self.run_tool(f"x8 -u {host} -w {api_wl} -o {x8f} --disable-progress-bar -v 0", timeout=300)
+                self.run_tool(f"x8 -u {host.rstrip('/') + '/'} -w {api_wl} -o {x8f} --disable-progress-bar", timeout=300)
                 if x8f.exists():
                     xr = read_file(x8f)
                     if xr:
