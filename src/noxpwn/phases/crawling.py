@@ -8,12 +8,15 @@ from ..utils import info, good, warn, save_to_file, read_file, run_cmd, ensure_d
 def _resolve_cmd(tool, module_name=None, script_path=None):
     if shutil.which(tool):
         return tool
-    if module_name:
-        rc, _, _ = run_cmd(f"python3 -c \"import {module_name}\" 2>/dev/null", capture=True)
-        if rc == 0:
-            return f"python3 -m {module_name}"
-    if script_path and os.path.exists(script_path):
-        return f"python3 {script_path}"
+    for py in ("python", "python3"):
+        if module_name:
+            rc, _, _ = run_cmd(f"{py} -c \"import {module_name}\" 2>nul", capture=True)
+            if rc == 0:
+                return f"{py} -m {module_name}"
+        if script_path and os.path.exists(script_path):
+            rc, _, _ = run_cmd(f"{py} -c \"import sys\" 2>nul", capture=True)
+            if rc == 0:
+                return f"{py} {script_path}"
     return tool
 
 
@@ -164,13 +167,29 @@ class Phase08Js(BasePhase):
                 good(f"jsleak: {len(jr)} potential secrets/endpoints")
 
         # LinkFinder — extract endpoints from JS
-        lf_avail = self.tool_available("linkfinder") or os.path.exists("LinkFinder/linkfinder.py")
+        lf_paths = [
+            "LinkFinder/linkfinder.py",
+            os.path.expanduser("~/LinkFinder/linkfinder.py"),
+            "/opt/LinkFinder/linkfinder.py",
+        ]
+        lf_avail = self.tool_available("linkfinder") or any(os.path.exists(p) for p in lf_paths)
         if lf_avail:
-            lf_cmd = _resolve_cmd("linkfinder", "linkfinder", "LinkFinder/linkfinder.py")
-            for js in js_urls[:30]:
-                results = self.run_tool(f"{lf_cmd} -i '{js}' -o cli", timeout=60)
-                if results:
-                    endpoints.update(results)
+            lf_cmd = _resolve_cmd("linkfinder", "linkfinder", next((p for p in lf_paths if os.path.exists(p)), None))
+            # Prefer locally downloaded JS files (offline, fast), fall back to URLs
+            sources = downloaded if downloaded else js_urls[:30]
+            for src in sources:
+                results = self.run_tool(f"{lf_cmd} -i '{src}' -o cli", timeout=60)
+                for line in results:
+                    line = line.strip()
+                    if not line or line.startswith(("Usage:", "Error:", "[", "URL:", "METHOD:", "ENDPOINTS", "No endpoint", "Running")):
+                        continue
+                    if line.startswith("//"):
+                        line = "https:" + line
+                    if line.startswith("/") and src.startswith(("http://", "https://")):
+                        from urllib.parse import urljoin
+                        endpoints.add(urljoin(src, line))
+                    else:
+                        endpoints.add(line)
             if endpoints:
                 good(f"LinkFinder: {len(endpoints)} endpoints extracted")
 

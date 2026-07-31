@@ -144,9 +144,10 @@ def check_tool(name):
     }
     if name in python_module_map:
         for mod in python_module_map[name]:
-            rc, _, _ = run_cmd(f"python3 -c \"import {mod}\" 2>/dev/null", capture=True)
-            if rc == 0:
-                return True
+            for py in ("python", "python3"):
+                rc, _, _ = run_cmd(f"{py} -c \"import {mod}\" 2>nul", capture=True)
+                if rc == 0:
+                    return True
     return False
 
 

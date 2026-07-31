@@ -1,7 +1,9 @@
-import os
+import json
+import urllib.request
+import urllib.error
 from .base import BasePhase
-from ..utils import info, good, warn, save_to_file, read_file, run_cmd
-from ..config import GRAPHQL_PATHS, find_api_wordlist
+from ..utils import info, good, save_to_file, read_file
+from ..config import GRAPHQL_PATHS
 
 
 class Phase11Api(BasePhase):
@@ -11,76 +13,59 @@ class Phase11Api(BasePhase):
     def run(self, live_hosts):
         self.header()
         api_findings = []
+        graphql_endpoints = []
 
-        # x8 — hidden API path discovery
-        if self.tool_available("x8"):
-            api_wl = find_api_wordlist()
-            if not api_wl:
-                basic_api = [
-                    "api", "api/v1", "api/v2", "v1", "v2", "v3",
-                    "graphql", "swagger", "docs", "rest", "api-docs",
-                    "swagger.json", "openapi.json", "health", "status",
-                    "users", "admin", "login", "auth", "token", "oauth",
-                ]
-                api_wl = str(self.outdir / "api_wordlist.txt")
-                save_to_file(api_wl, basic_api)
-
-            for host in live_hosts[:5]:
-                clean = host.replace("https://", "").replace("http://", "").split("/")[0]
-                x8f = self.outdir / f"x8_api_{clean}.txt"
-                self.run_tool(f"x8 -u {host.rstrip('/') + '/'} -w {api_wl} -o {x8f} --disable-progress-bar", timeout=300)
-                if x8f.exists():
-                    xr = read_file(x8f)
-                    if xr:
-                        api_findings.extend(xr)
-                        for line in xr[:5]:
-                            self.add_finding("low", f"API endpoint: {line.strip()[:120]}")
-                        good(f"x8 API ({clean}): {len(xr)} endpoints")
-
-        # Nuclei — GraphQL detection
+        # Nuclei — API / GraphQL / exposure templates
         if self.tool_available("nuclei"):
             hosts_file = self.outdir / "targets.txt"
             save_to_file(hosts_file, live_hosts)
-            ngf = self.outdir / "nuclei_graphql.txt"
-            self.run_tool(
-                f"nuclei -l {hosts_file} -tags graphql -silent -o {ngf}",
-                timeout=300,
-            )
-            if ngf.exists():
-                ng = read_file(ngf)
-                if ng:
-                    api_findings.extend(ng)
-                    for line in ng:
-                        self.add_finding("medium", f"GraphQL: {line.strip()[:120]}")
-                    good(f"nuclei graphql: {len(ng)} endpoints")
-
-        # Nuclei — API-related templates
-        if self.tool_available("nuclei"):
-            hosts_file = self.outdir / "targets.txt"
             naf = self.outdir / "nuclei_api.txt"
             self.run_tool(
-                f"nuclei -l {hosts_file} -tags api,swagger,exposure -silent -o {naf}",
-                timeout=300,
+                f"nuclei -l {hosts_file} -tags api,swagger,graphql,exposure -silent -o {naf}",
+                timeout=600,
             )
             if naf.exists():
                 na = read_file(naf)
                 if na:
                     api_findings.extend(na)
-                    for line in na:
+                    for line in na[:20]:
                         self.add_finding("medium", f"API exposure: {line.strip()[:120]}")
                     good(f"nuclei api: {len(na)} exposures")
 
-        # Basic curl-based GraphQL detection
+        # Python-based GraphQL detection with a real introspection probe
+        probe_payload = json.dumps({"query": "{__typename}"}).encode()
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0",
+        }
         for host in live_hosts[:10]:
             for path in GRAPHQL_PATHS:
-                _, out, _ = run_cmd(
-                    f"curl -sk -o /dev/null -w '%{{http_code}}' '{host}{path}' 2>/dev/null",
-                    timeout=10,
-                )
-                if out.strip() in ("200", "400"):
-                    status = "200 OK" if out.strip() == "200" else "400 (GraphQL likely)"
-                    self.add_finding("medium", f"GraphQL endpoint: {host}{path} ({status})")
-                    save_to_file(self.outdir / "graphql_endpoints.txt", f"{host}{path}")
+                url = f"{host}{path}"
+                try:
+                    req = urllib.request.Request(
+                        url, data=probe_payload, method="POST", headers=headers
+                    )
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        body = resp.read(65536).decode("utf-8", errors="ignore")
+                        if '"__typename"' in body or '"data"' in body:
+                            graphql_endpoints.append(f"{url} [200]")
+                            self.add_finding("medium", f"GraphQL endpoint: {url} (200)")
+                except urllib.error.HTTPError as e:
+                    if e.code == 400:
+                        try:
+                            body = e.read(65536).decode("utf-8", errors="ignore")
+                            if '"__typename"' in body or '"data"' in body or "error" in body.lower():
+                                graphql_endpoints.append(f"{url} [400]")
+                                self.add_finding("medium", f"GraphQL endpoint: {url} (400)")
+                        except Exception:
+                            pass
+                except Exception:
+                    continue
+
+        if graphql_endpoints:
+            save_to_file(self.outdir / "graphql_endpoints.txt", graphql_endpoints)
+            api_findings.extend(graphql_endpoints)
+            good(f"GraphQL endpoints: {len(graphql_endpoints)}")
 
         if api_findings:
             save_to_file(self.outdir / "api_findings.txt", api_findings)
