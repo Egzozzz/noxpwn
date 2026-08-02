@@ -82,6 +82,9 @@ def check_cargo():
 
 def pip_install(pkg_name):
     rc, out, err = run_cmd(f"pip3 install {pkg_name}", timeout=120, live=True)
+    if rc == 0:
+        return True
+    rc, out, err = run_cmd(f"python -m pip install {pkg_name}", timeout=120, live=True)
     return rc == 0
 
 
@@ -106,12 +109,16 @@ def cargo_install(pkg_name):
 
 def git_install(repo, name):
     import os as _os
-    tmpdir = f"/tmp/{name}"
+    import tempfile
+    import shutil as _shutil
+    tmpdir = _os.path.join(tempfile.gettempdir(), name)
     if _os.path.exists(tmpdir):
-        run_cmd(f"rm -rf {tmpdir}", timeout=10)
+        _shutil.rmtree(tmpdir, ignore_errors=True)
     rc, out, err = run_cmd(f"git clone {repo} {tmpdir}", timeout=120, live=True)
     if rc == 0:
         rc2, _, _ = run_cmd(f"pip3 install -e {tmpdir}", timeout=60, live=True)
+        if rc2 != 0:
+            rc2, _, _ = run_cmd(f"python -m pip install -e {tmpdir}", timeout=60, live=True)
         return rc2 == 0
     return False
 

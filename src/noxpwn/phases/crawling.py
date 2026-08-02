@@ -207,6 +207,33 @@ class Phase08Js(BasePhase):
             save_to_file(self.outdir / "js_params.txt", js_params)
             info(f"Extracted {len(js_params)} parameter names from JS URLs")
 
+        # Regex-based secret scan of downloaded JS file contents
+        if downloaded:
+            secret_patterns = [
+                ("AWS Key", r"AKIA[0-9A-Z]{16}"),
+                ("Google API Key", r"AIza[0-9A-Za-z\-_]{35}"),
+                ("Google OAuth", r"ya29\.[0-9A-Za-z\-_]+"),
+                ("Slack Token", r"xox[baprs]-[0-9a-zA-Z\-]{10,48}"),
+                ("GitHub Token", r"gh[pousr]_[A-Za-z0-9_]{36,255}"),
+                ("JWT Token", r"eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}"),
+                ("Bearer Token", r"bearer\s+[A-Za-z0-9\-\._~\+\/]{20,}"),
+                ("Private Key", r"-----BEGIN\s?(RSA|DSA|EC|OPENSSH|PGP)?\s?PRIVATE KEY-----"),
+                ("Firebase URL", r"[a-z0-9-]+\.firebaseio\.com"),
+                ("Slack Webhook", r"https://hooks\.slack\.com/services/[A-Za-z0-9/]+"),
+            ]
+            for fname in downloaded[:50]:
+                try:
+                    with open(fname, encoding="utf-8", errors="ignore") as fh:
+                        content = fh.read()
+                except:
+                    continue
+                for sname, pattern in secret_patterns:
+                    m = re.search(pattern, content)
+                    if m and len(m.group(0)) > 6:
+                        secrets.add(f"{sname}: {m.group(0)[:120]}")
+            if secrets:
+                good(f"regex secrets: {len(secrets)} from JS contents")
+
         if endpoints:
             save_to_file(self.outdir / "endpoints.txt", sorted(endpoints))
             good(f"Total endpoints: {len(endpoints)}")

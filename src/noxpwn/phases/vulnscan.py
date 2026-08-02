@@ -1,6 +1,38 @@
-import os
+import urllib.request
+import urllib.error
 from .base import BasePhase
 from ..utils import info, good, warn, save_to_file, read_file, run_cmd, c
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Reject redirects so we can inspect the Location header directly."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _http_status_and_headers(url, method="GET", headers=None, timeout=10):
+    """Cross-platform HTTP request returning (status, lowercase headers dict)."""
+    try:
+        req = urllib.request.Request(url, method=method, headers=headers or {})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status, {k.lower(): v for k, v in resp.headers.items()}
+    except urllib.error.HTTPError as e:
+        return e.code, {k.lower(): v for k, v in e.headers.items()}
+    except Exception:
+        return None, {}
+
+
+def _redirect_location(url, timeout=10):
+    """Return the Location header of a request without following redirects."""
+    try:
+        opener = urllib.request.build_opener(_NoRedirect())
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        resp = opener.open(req, timeout=timeout)
+        return resp.headers.get("Location", "")
+    except urllib.error.HTTPError as e:
+        return e.headers.get("Location", "")
+    except Exception:
+        return ""
 
 
 class Phase14Cors(BasePhase):
@@ -28,13 +60,10 @@ class Phase14Cors(BasePhase):
             origins = ["https://evil.com", "null", "https://evil.com:80", "https://evil.com:443"]
             for host in live_hosts[:5]:
                 for origin in origins:
-                    _, out, _ = run_cmd(
-                        f"curl -s -I -H 'Origin: {origin}' '{host}' 2>/dev/null",
-                        timeout=10,
-                    )
-                    if "Access-Control-Allow-Origin" in out:
-                        if origin in out or "*" in out:
-                            self.add_finding("medium", f"CORS misconfig: {host} (origin: {origin})")
+                    _, hdrs = _http_status_and_headers(host, method="HEAD", headers={"Origin": origin})
+                    acao = hdrs.get("access-control-allow-origin")
+                    if acao and (origin in acao or "*" in acao):
+                        self.add_finding("medium", f"CORS misconfig: {host} (origin: {origin})")
 
 
 class Phase15Nuclei(BasePhase):
@@ -52,10 +81,10 @@ class Phase15Nuclei(BasePhase):
         all_vulns = set()
 
         # Pass 1: All severity general scan
-        info("Nuclei pass 1/4 — all severity vulnerability scan...")
+        info("Nuclei pass 1/4 — vulnerability scan...")
         of = self.outdir / "nuclei_vulns.txt"
         self.run_tool(
-            f"nuclei -l {hosts_file} -silent -o {of}",
+            f"nuclei -l {hosts_file} -silent -severity critical,high,medium -exclude-severity info -o {of}",
             timeout=900,
         )
         vulns = read_file(of)
@@ -242,11 +271,8 @@ class Phase18OpenRedirect(BasePhase):
         for host in test_urls:
             for param in redirect_params:
                 url = f"{host}?{param}=https://evil.com"
-                rc, out, _ = run_cmd(
-                    f"curl -sk -o /dev/null -w '%{{redirect_url}}' '{url}' 2>/dev/null",
-                    timeout=10,
-                )
-                if out and "evil.com" in out.strip():
+                location = _redirect_location(url)
+                if location and "evil.com" in location:
                     self.add_finding("medium", f"Open redirect: {host}?{param}=https://evil.com")
                     save_to_file(self.outdir / "redirect_params_found.txt", f"{host}?{param}=https://evil.com")
                     break
@@ -290,12 +316,8 @@ class Phase19ExposedFiles(BasePhase):
         for host in live_hosts[:5]:
             for path in sensitive_paths:
                 url = f"{host}{path}"
-                rc, out, _ = run_cmd(
-                    f"curl -sk -o /dev/null -w '%{{http_code}}' '{url}' 2>/dev/null",
-                    timeout=10,
-                )
-                code = out.strip()
-                if code in ("200", "401", "403"):
+                code, _ = _http_status_and_headers(url)
+                if code in (200, 401, 403):
                     finding = f"{url} [{code}]"
                     findings.add(finding)
                     sev = "high" if path in ("/.git/config", "/.env", "/.aws/credentials", "/wp-config.php") else "medium"

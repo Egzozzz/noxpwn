@@ -124,6 +124,7 @@ def check_tool(name):
         return True
     go_paths = [
         os.path.expanduser("~/go/bin"),
+        os.path.expanduser("~\\go\\bin"),
         "/usr/local/go/bin",
         "/usr/lib/go/bin",
     ]

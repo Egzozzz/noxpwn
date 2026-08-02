@@ -1,25 +1,5 @@
-import re
 from .base import BasePhase
-from ..utils import info, good, warn, save_to_file, read_file, c
-
-
-SECRET_REGEXES = [
-    ("AWS Key", r"AKIA[0-9A-Z]{16}"),
-    ("AWS Secret", r"(?i)aws(.{0,20})?(?-i)['\"][0-9a-zA-Z\/+]{40}['\"]"),
-    ("Google API Key", r"AIza[0-9A-Za-z\-_]{35}"),
-    ("Google OAuth", r"ya29\.[0-9A-Za-z\-_]+"),
-    ("Slack Token", r"xox[baprs]-[0-9a-zA-Z\-]{10,48}"),
-    ("GitHub Token", r"gh[pousr]_[A-Za-z0-9_]{36,255}"),
-    ("GitHub Old", r"github\.com/.{1,100}['\"][0-9a-zA-Z]{35,40}['\"]"),
-    ("JWT Token", r"eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}"),
-    ("Generic API Key", r"(?i)(api[_-]?key|apikey|api[_-]?secret|api_secret)['\"]?\s*[:=]\s*['\"][0-9a-zA-Z_\-]{16,}['\"]"),
-    ("Bearer Token", r"bearer\s+[A-Za-z0-9\-\._~\+\/]{20,}"),
-    ("Private Key", r"-----BEGIN\s?(RSA|DSA|EC|OPENSSH|PGP)?\s?PRIVATE KEY-----"),
-    ("Firebase URL", r"[a-z0-9-]+\.firebaseio\.com"),
-    ("Slack Webhook", r"https://hooks\.slack\.com/services/[A-Za-z0-9/]+"),
-    ("S3 Bucket", r"[a-z0-9\-\.]+\.s3\.amazonaws\.com"),
-    ("Admin Panel", r"(?i)(admin|dashboard|wp-admin|cpanel|phpmyadmin)"),
-]
+from ..utils import good, warn, save_to_file, read_file, c
 
 
 class Phase13Classify(BasePhase):

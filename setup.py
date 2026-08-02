@@ -7,7 +7,7 @@ with open(os.path.join(os.path.dirname(__file__), "src", "noxpwn", "__init__.py"
             version = line.split("=")[1].strip().strip('"').strip("'")
             break
     else:
-        version = "1.1.5"
+        version = "1.2.0"
 
 with open(os.path.join(os.path.dirname(__file__), "README.md"), encoding="utf-8") as f:
     long_description = f.read()

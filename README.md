@@ -1,8 +1,8 @@
 # NOXPWN - Auto Bug Bounty Engine
 
-> **17 Phases · 31 Tools · Fully Automated Reconnaissance & Vulnerability Scanning**
+> **19 Phases · 32 Tools · Fully Automated Reconnaissance & Vulnerability Scanning**
 
-NOXPWN is an automated bug bounty and penetration testing tool that chains 31 industry-standard security tools into a single pipeline. It handles everything from subdomain discovery to vulnerability scanning with zero manual intervention.
+NOXPWN is an automated bug bounty and penetration testing tool that chains 32 industry-standard security tools into a single pipeline. It handles everything from subdomain discovery to vulnerability scanning with zero manual intervention.
 
 ---
 
@@ -10,23 +10,25 @@ NOXPWN is an automated bug bounty and penetration testing tool that chains 31 in
 
 | Phase | Module | Tools Used |
 |-------|--------|------------|
-| 01 | Subdomain Discovery | subfinder, assetfinder, amass, crt.sh, dnsx, gotator, puredns |
+| 01 | Subdomain Discovery | subfinder, assetfinder, amass, crt.sh, dnsx, gotator, puredns, knockpy |
 | 02 | Port Scanning | naabu, nmap |
 | 03 | Live Host Detection | httpx + tech-detect |
 | 04 | Subdomain Takeover | subzy, nuclei (takeover tags) |
 | 05 | WAF Detection | wafw00f |
 | 06 | Screenshots | gowitness (smart mode) |
 | 07 | URL Collection | katana, gau, waybackurls, hakrawler, gospider |
-| 08 | JavaScript Analysis | subjs, jsleak, LinkFinder, mantra, gf |
+| 08 | JavaScript Analysis | subjs, jsleak, LinkFinder, mantra, regex secrets |
 | 09 | Directory Bruteforce | ffuf, feroxbuster |
 | 10 | Parameter Discovery | arjun, x8 |
-| 11 | API & GraphQL | x8, nuclei (graphql/api/swagger tags), curl |
+| 11 | API & GraphQL | nuclei (api/graphql/swagger/exposure) + Python GraphQL probe |
 | 12 | Parameterized URLs | httpx filtering |
-| 13 | Pattern Classification | gf (9 patterns), regex secrets |
-| 14 | CORS Misconfiguration | CorsMe, curl fallback |
-| 15 | Vulnerability Scan | nuclei (critical/high/medium) |
+| 13 | Pattern Classification | gf (9 patterns) |
+| 14 | CORS Misconfiguration | CorsMe, Python fallback |
+| 15 | Vulnerability Scan | nuclei (error/high/medium) |
 | 16 | XSS Report | dalfox suggestions |
 | 17 | SQLi Report | sqlmap suggestions |
+| 18 | Open Redirect | nuclei + Python redirect probe |
+| 19 | Exposed Files | nuclei + Python check |
 
 **Smart Features:**
 - Smart Screenshots: Full screenshot mode only when critical findings are discovered
@@ -46,7 +48,7 @@ NOXPWN is an automated bug bounty and penetration testing tool that chains 31 in
 - Python 3.7+
 - Go (for Go-based tools)
 - Rust/Cargo (for x8)
-- Linux/Kali environment (recommended)
+- Linux/Kali environment (recommended) or Windows (see below)
 
 ### Quick Install (run directly, no setup needed)
 ```bash
@@ -57,6 +59,13 @@ chmod +x noxpwn
 # Run directly
 ./noxpwn --help
 ./noxpwn -u https://example.com
+```
+
+### Windows
+```bat
+@echo off
+pip install -e .
+noxpwn.cmd -u https://example.com
 ```
 
 ### Full Install (system-wide)
@@ -143,7 +152,7 @@ noxpwn_output/
 
 ## Tools
 
-### Required (25 tools)
+### Required (24 tools)
 
 | Tool | Type | Purpose |
 |------|------|---------|
@@ -171,9 +180,8 @@ noxpwn_output/
 | nuclei | go | Vulnerability scanning |
 | dalfox | go | XSS scanning |
 | sqlmap | pip | SQLi detection |
-| mantra | go | JS secret analysis |
 
-### Optional (6 tools)
+### Optional (8 tools)
 
 | Tool | Type | Purpose |
 |------|------|---------|
@@ -183,6 +191,9 @@ noxpwn_output/
 | linkfinder | git+pip | JS endpoint extraction |
 | feroxbuster | apt | Directory bruteforce |
 | unfurl | go | URL parsing |
+| linkfinder | git+pip | JS endpoint extraction |
+| mantra | go | JS secret analysis |
+| knockpy | git+pip | Passive/brute subdomain recon |
 
 ---
 
@@ -203,6 +214,8 @@ noxpwn_output/
 - CORS Misconfiguration
 - General Vulnerability Scanning
 - Screenshot Triage
+- Open Redirect Detection
+- Exposed Files & Configuration Discovery
 
 ---
 
