@@ -15,7 +15,7 @@ with open(os.path.join(os.path.dirname(__file__), "README.md"), encoding="utf-8"
 setup(
     name="noxpwn",
     version=version,
-    description="Automated Bug Bounty & Pentesting Tool (17 phases, 32 tools)",
+    description="Automated Bug Bounty & Pentesting Engine (19 phases, 32 tools, rate-limiting & auto-install)",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="noxpwn",
@@ -35,7 +35,7 @@ setup(
     },
     install_requires=[],
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Information Technology",
         "Topic :: Security :: Penetration Testing",
         "License :: OSI Approved :: MIT License",
@@ -45,7 +45,12 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
         "Operating System :: POSIX :: Linux",
+        "Operating System :: Microsoft :: Windows",
+        "Operating System :: MacOS",
     ],
-    keywords="bug-bounty, penetration-testing, security, reconnaissance, automation",
+    keywords="bug-bounty, penetration-testing, security, reconnaissance, automation, rate-limiting, subfinder, httpx, linkfinder, mantra",
 )

@@ -45,8 +45,9 @@ class Phase07Urls(BasePhase):
         # Katana (recursive crawl)
         if self.tool_available("katana"):
             kf = self.outdir / "katana.txt"
+            katana_rf = self.rate_limit_flags("katana")
             self.run_tool(
-                f"katana -list {hosts_file} -silent -recursion -depth 3 -jc -kf all -o {kf}",
+                f"katana -list {hosts_file} {katana_rf} -silent -recursion -depth 3 -jc -kf all -o {kf}",
                 timeout=600,
             )
             if kf.exists():
@@ -68,7 +69,7 @@ class Phase07Urls(BasePhase):
         # Waybackurls
         if self.tool_available("waybackurls"):
             wf = self.outdir / "waybackurls.txt"
-            self.run_tool(f"cat {hosts_file} | waybackurls > {wf}", timeout=300)
+            self.run_tool(f"waybackurls > {wf}", stdin_file=hosts_file, timeout=300)
             if wf.exists():
                 urls = read_file(wf)
                 all_urls.update(urls)
@@ -79,7 +80,7 @@ class Phase07Urls(BasePhase):
             for host in live_hosts[:3]:
                 h = host.replace("https://", "").replace("http://", "").split("/")[0]
                 hf = self.outdir / f"hakrawler_{h}.txt"
-                self.run_tool(f"echo '{host}' | hakrawler -d 3 -insecure >> {hf}", timeout=300)
+                self.run_tool(f"hakrawler -d 3 -insecure >> {hf}", stdin_text=f"{host}\n", timeout=300)
                 if hf.exists():
                     urls = read_file(hf)
                     all_urls.update(urls)
@@ -88,8 +89,9 @@ class Phase07Urls(BasePhase):
         # Gospider
         if self.tool_available("gospider"):
             gd = self.outdir / "gospider_output"
+            gospider_rf = self.rate_limit_flags("gospider")
             self.run_tool(
-                f"gospider -S {hosts_file} -d 3 --no-redirect -c 20 -t 10 "
+                f"gospider -S {hosts_file} {gospider_rf} -d 3 --no-redirect -c 20 -t 10 "
                 f"--blacklist '.(jpg|jpeg|gif|css|png|svg|woff|ttf|ico|pdf)' -o {gd}",
                 timeout=600,
             )
@@ -123,18 +125,20 @@ class Phase08Js(BasePhase):
         save_to_file(self.outdir / "js_files.txt", js_urls)
         info(f"Found {len(js_urls)} JS file URLs")
 
-        # Download JS files for local analysis
-        import urllib.request
+        # Download JS files for local analysis with safe throttling
+        from ..utils import safe_http_get
         js_dir = ensure_dir(self.outdir / "downloaded_js")
         downloaded = []
         for url in js_urls[:50]:
             try:
+                self.engine.throttle()
                 fname = url.rsplit("/", 1)[-1].split("?")[0] or "file.js"
                 dst = js_dir / fname
-                urllib.request.urlretrieve(url, dst)
-                if dst.stat().st_size > 100:
+                status, body, _ = safe_http_get(url, timeout=10)
+                if status == 200 and body and len(body) > 100:
+                    save_to_file(dst, body)
                     downloaded.append(str(dst))
-            except:
+            except Exception:
                 pass
         if downloaded:
             info(f"Downloaded {len(downloaded)} JS files for local analysis")
@@ -159,7 +163,7 @@ class Phase08Js(BasePhase):
         # jsleak — extract endpoints + secrets from JS (stdin pipe)
         if self.tool_available("jsleak") and js_urls:
             jf = self.outdir / "js_files.txt"
-            self.run_tool(f"cat {jf} | jsleak -l -s > {self.outdir}/jsleak_output.txt", timeout=120)
+            self.run_tool(f"jsleak -l -s > {self.outdir}/jsleak_output.txt", stdin_file=jf, timeout=120)
             jsleak_file = self.outdir / "jsleak_output.txt"
             if jsleak_file.exists():
                 jr = read_file(jsleak_file)
@@ -175,10 +179,12 @@ class Phase08Js(BasePhase):
         lf_avail = self.tool_available("linkfinder") or any(os.path.exists(p) for p in lf_paths)
         if lf_avail:
             lf_cmd = _resolve_cmd("linkfinder", "linkfinder", next((p for p in lf_paths if os.path.exists(p)), None))
-            # Prefer locally downloaded JS files (offline, fast), fall back to URLs
             sources = downloaded if downloaded else js_urls[:30]
             for src in sources:
-                results = self.run_tool(f"{lf_cmd} -i '{src}' -o cli", timeout=60)
+                if any(ch in src for ch in (';', '&', '|', '`', '$', '\n', '\r')):
+                    continue
+                safe_src = src.replace('"', '\\"')
+                results = self.run_tool(f'{lf_cmd} -i "{safe_src}" -o cli', timeout=60)
                 for line in results:
                     line = line.strip()
                     if not line or line.startswith(("Usage:", "Error:", "[", "URL:", "METHOD:", "ENDPOINTS", "No endpoint", "Running")):
@@ -192,16 +198,35 @@ class Phase08Js(BasePhase):
                         endpoints.add(line)
             if endpoints:
                 good(f"LinkFinder: {len(endpoints)} endpoints extracted")
+        else:
+            # Built-in Python endpoint extractor fallback
+            info("LinkFinder not installed. Using built-in regex endpoint extractor...")
+            endpoint_pattern = re.compile(
+                r"""(?:"|')(((?:[a-zA-Z]{1,10}://|//)[^"'/]{1,}\.[a-zA-Z]{2,}[^"']{0,})|((?:/|\.\./|\./)[^"'><,;| *()(%%$^/\\\[\]][^"'><,;|()]{1,})|([a-zA-Z0-9_\-/]{1,}/[a-zA-Z0-9_\-/]{1,}\.(?:[a-zA-Z]{1,4}|action)(?:[\?|#][^"\\']*)|[a-zA-Z0-9_\-/]{1,}/[a-zA-Z0-9_\-/]{3,}(?:[\?|#][^"\\']*))|([a-zA-Z0-9_\-]{1,}\.(?:php|asp|aspx|jsp|json|action|xml|html|txt|log)(?:[\?|#][^"\\']*)))"""
+            )
+            for fname in downloaded[:50]:
+                try:
+                    with open(fname, encoding="utf-8", errors="ignore") as fh:
+                        content = fh.read()
+                        matches = endpoint_pattern.findall(content)
+                        for m in matches:
+                            ep = next((part for part in m if part), "")
+                            if ep and len(ep) > 2 and not ep.startswith(("//", "http")):
+                                endpoints.add(ep)
+                except Exception:
+                    pass
+            if endpoints:
+                good(f"Built-in JS Endpoint Extractor: {len(endpoints)} endpoints extracted")
 
         # Mantra — JS secret analysis
         if self.tool_available("mantra"):
             jf = self.outdir / "js_files.txt"
-            results = self.run_tool(f"cat {jf} | mantra", timeout=120)
+            results = self.run_tool("mantra", stdin_file=jf, timeout=120)
             if results:
                 secrets.update(results)
                 good(f"mantra: {len(results)} potential secrets")
 
-        # Extract parameters from JS URLs (look for endpoints with params)
+        # Extract parameters from JS URLs
         js_params = _extract_params_from_urls(js_urls)
         if js_params:
             save_to_file(self.outdir / "js_params.txt", js_params)

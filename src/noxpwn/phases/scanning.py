@@ -16,8 +16,9 @@ class Phase02Ports(BasePhase):
         # naabu — port scanning (top 1000)
         if self.tool_available("naabu"):
             naabu_out = self.outdir / "naabu_ports.txt"
+            naabu_rf = self.rate_limit_flags("naabu")
             self.run_tool(
-                f"naabu -list {subs_file} -silent -top-ports 1000 -o {naabu_out}",
+                f"naabu -list {subs_file} {naabu_rf} -silent -top-ports 1000 -o {naabu_out}",
                 timeout=600,
             )
             if naabu_out.exists():
@@ -60,8 +61,9 @@ class Phase03Httpx(BasePhase):
 
         if self.tool_available("httpx"):
             live_file = self.outdir / "live_hosts.txt"
+            httpx_rf = self.rate_limit_flags("httpx")
             self.run_tool(
-                f"httpx -l {subs_file} -silent -tech-detect -status-code -content-length -title -web-server -o {live_file}",
+                f"httpx -l {subs_file} {httpx_rf} -silent -tech-detect -status-code -content-length -title -web-server -o {live_file}",
                 timeout=600,
             )
             if live_file.exists():
@@ -83,8 +85,33 @@ class Phase03Httpx(BasePhase):
                         save_to_file(self.outdir / "technologies.txt", sorted(techs))
                         info(f"Tech detected: {', '.join(sorted(techs)[:20])}")
         else:
-            live_hosts = [f"https://{d}" for d in subdomains[:10]]
-            warn("httpx not available, using raw domains")
+            warn("httpx not available. Running built-in Python live host prober...")
+            from ..utils import safe_http_get
+            import re
+            techs = set()
+            for sub in subdomains:
+                for proto in ("https", "http"):
+                    target_url = f"{proto}://{sub}"
+                    self.engine.throttle()
+                    status, body, hdrs = safe_http_get(target_url, timeout=8)
+                    if status is not None:
+                        live_hosts.append(target_url)
+                        # Extract title and server
+                        title_match = re.search(r"<title[^>]*>(.*?)</title>", body, re.IGNORECASE | re.DOTALL)
+                        title = title_match.group(1).strip()[:50] if title_match else ""
+                        server = hdrs.get("server", "")
+                        if server:
+                            techs.add(server)
+                        extra = f" [{title}]" if title else ""
+                        srv_info = f" ({server})" if server else ""
+                        good(f"Live: {target_url} [{status}]{extra}{srv_info}")
+                        break
 
-        save_to_file(self.outdir / "live_urls.txt", live_hosts)
-        return live_hosts
+            if techs:
+                save_to_file(self.outdir / "technologies.txt", sorted(techs))
+
+        if not live_hosts:
+            live_hosts = [f"https://{d}" for d in subdomains[:5]]
+
+        save_to_file(self.outdir / "live_urls.txt", sorted(set(live_hosts)))
+        return sorted(set(live_hosts))

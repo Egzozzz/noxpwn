@@ -10,6 +10,11 @@ src/*.egg-info/
 # Output
 noxpwn_output/
 results/
+test_output/
+*.pem
+*.key
+*.pfx
+*.crt
 
 # OS
 .DS_Store

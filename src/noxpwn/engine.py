@@ -21,16 +21,36 @@ from .phases import (
 )
 
 
+def validate_target(target):
+    """Ensure target URL is safe and valid, preventing command injection."""
+    if not target or not isinstance(target, str):
+        raise ValueError("Invalid target: target URL must be a non-empty string.")
+    target = target.strip()
+    dangerous_chars = [';', '&', '|', '`', '$', '\n', '\r', '\0', '>', '<']
+    for ch in dangerous_chars:
+        if ch in target:
+            raise ValueError(f"Dangerous character '{ch}' detected in target URL. Aborting for safety.")
+    if not target.startswith(("http://", "https://")):
+        target = "https://" + target
+    return target
+
+
 class NoxPwnEngine:
     def __init__(self, target, output_dir, config=None):
-        self.target = target
-        raw = target.replace("https://", "").replace("http://", "").split("/")[0]
+        self.target = validate_target(target)
+        raw = self.target.replace("https://", "").replace("http://", "").split("/")[0]
         self.domain = re.sub(r'[^a-zA-Z0-9._-]', '', raw)
         self.base_dir = Path(output_dir) / self.domain
         self.config = config or {}
         self.quick = self.config.get("quick", False)
         self.from_phase = self.config.get("from_phase", 1)
         self.skip_tools = set(self.config.get("skip_tools", []))
+        self.rate_limit = self.config.get("rate_limit")
+        self.threads = self.config.get("threads", 10)
+        self.delay = self.config.get("delay")
+        if self.delay is None and self.rate_limit and self.rate_limit > 0:
+            self.delay = round(1.0 / self.rate_limit, 3)
+
         self.findings = {"high": [], "medium": [], "low": [], "info": []}
         self.start_time = datetime.now()
         self.timer = Timer()
@@ -40,6 +60,14 @@ class NoxPwnEngine:
         self.ssrf_candidates = []
         self.rce_candidates = []
         ensure_dir(self.base_dir)
+
+    def throttle(self):
+        """Throttling helper for internal Python HTTP probes to respect rate limits."""
+        import time
+        if self.delay and self.delay > 0:
+            time.sleep(self.delay)
+        elif self.rate_limit and self.rate_limit > 0:
+            time.sleep(1.0 / self.rate_limit)
 
     def should_run(self, phase_num):
         return phase_num >= self.from_phase
@@ -52,9 +80,8 @@ class NoxPwnEngine:
             "timestamp": datetime.now().isoformat(),
         }
         self.findings[severity].append(entry)
-        color_map = {"high": "red", "medium": "yellow", "low": "blue", "info": "cyan"}
-        icon_map = {"high": "🔥", "medium": "⚠", "low": "ℹ", "info": "→"}
-        print(f"  {c(icon_map[severity], color_map[severity])} {c(f'[{severity.upper()}]', color_map[severity])} {title}")
+        from .utils import finding_badge
+        finding_badge(severity, title)
 
     def safe_run_phase(self, phase_obj, *args, **kwargs):
         try:
@@ -116,6 +143,10 @@ class NoxPwnEngine:
         info(f"Target: {c(self.target, 'bold')}")
         info(f"Output: {c(str(self.base_dir), 'bold')}")
         info(f"Started: {self.start_time.isoformat()}")
+        if self.rate_limit or self.delay or self.threads:
+            rl_str = f"{self.rate_limit} req/s" if self.rate_limit else "unlimited"
+            dl_str = f"{self.delay}s" if self.delay else "none"
+            info(f"Bug Bounty Throttling: Rate Limit: {c(rl_str, 'yellow')} | Threads: {c(str(self.threads), 'yellow')} | Delay: {c(dl_str, 'yellow')}")
         if self.quick:
             info(f"Mode: {c('QUICK', 'yellow')} (skip slow scans)")
         print()

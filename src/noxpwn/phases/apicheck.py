@@ -20,8 +20,9 @@ class Phase11Api(BasePhase):
             hosts_file = self.outdir / "targets.txt"
             save_to_file(hosts_file, live_hosts)
             naf = self.outdir / "nuclei_api.txt"
+            nuclei_rf = self.rate_limit_flags("nuclei")
             self.run_tool(
-                f"nuclei -l {hosts_file} -tags api,swagger,graphql,exposure -silent -o {naf}",
+                f"nuclei -l {hosts_file} {nuclei_rf} -tags api,swagger,graphql,exposure -silent -o {naf}",
                 timeout=600,
             )
             if naf.exists():
@@ -32,20 +33,26 @@ class Phase11Api(BasePhase):
                         self.add_finding("medium", f"API exposure: {line.strip()[:120]}")
                     good(f"nuclei api: {len(na)} exposures")
 
-        # Python-based GraphQL detection with a real introspection probe
+        # Python-based GraphQL detection with SSL-tolerant probe and throttling
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
         probe_payload = json.dumps({"query": "{__typename}"}).encode()
         headers = {
             "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) noxpwn/1.3.0",
         }
         for host in live_hosts[:10]:
             for path in GRAPHQL_PATHS:
                 url = f"{host}{path}"
+                self.engine.throttle()
                 try:
                     req = urllib.request.Request(
                         url, data=probe_payload, method="POST", headers=headers
                     )
-                    with urllib.request.urlopen(req, timeout=10) as resp:
+                    with urllib.request.urlopen(req, timeout=8, context=ctx) as resp:
                         body = resp.read(65536).decode("utf-8", errors="ignore")
                         if '"__typename"' in body or '"data"' in body:
                             graphql_endpoints.append(f"{url} [200]")
@@ -87,7 +94,8 @@ class Phase12ParamUrls(BasePhase):
             uf = self.outdir / "urls.txt"
             save_to_file(uf, param_urls)
             lf = self.outdir / "live_param_urls.txt"
-            self.run_tool(f"httpx -l {uf} -silent -mc 200 -o {lf}", timeout=300)
+            httpx_rf = self.rate_limit_flags("httpx")
+            self.run_tool(f"httpx -l {uf} {httpx_rf} -silent -mc 200 -o {lf}", timeout=300)
             if lf.exists():
                 live = read_file(lf)
                 if live:

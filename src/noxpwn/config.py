@@ -10,15 +10,23 @@ WORDLIST_PATHS = [
     "/usr/share/seclists/Discovery/Web-Content/big.txt",
     "/usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt",
     "/usr/share/wordlists/common.txt",
+    os.path.expanduser("~/wordlists/common.txt"),
+    os.path.expanduser("~/seclists/Discovery/Web-Content/common.txt"),
+    os.path.expanduser("~\\wordlists\\common.txt"),
+    os.path.expanduser("~\\seclists\\Discovery\\Web-Content\\common.txt"),
 ]
 
 API_WORDLIST_PATHS = [
     "/usr/share/seclists/Discovery/Web-Content/api/api-endpoints.txt",
     "/usr/share/seclists/Discovery/Web-Content/api/api-endpoints-res.txt",
+    os.path.expanduser("~/seclists/Discovery/Web-Content/api/api-endpoints.txt"),
+    os.path.expanduser("~\\seclists\\Discovery\\Web-Content\\api\\api-endpoints.txt"),
 ]
 
 PARAM_WORDLIST_PATHS = [
     "/usr/share/seclists/Discovery/Web-Content/burp-parameter-names.txt",
+    os.path.expanduser("~/seclists/Discovery/Web-Content/burp-parameter-names.txt"),
+    os.path.expanduser("~\\seclists\\Discovery\\Web-Content\\burp-parameter-names.txt"),
 ]
 
 TOOL_CONFIG = {
@@ -42,8 +50,8 @@ TOOL_CONFIG = {
     "jsleak": {"timeout": 120, "flags": ""},
     "linkfinder": {"timeout": 60, "flags": "-o cli"},
     "mantra": {"timeout": 120, "flags": ""},
-    "ffuf": {"timeout": 300, "flags": "-mc all -fc 404,403 -t 50 -recursion -recursion-depth 3 -s"},
-    "feroxbuster": {"timeout": 300, "flags": "-d 3 -t 30 --auto-tune --silent"},
+    "ffuf": {"timeout": 300, "flags": "-mc all -fc 404,403 -recursion -recursion-depth 3 -s"},
+    "feroxbuster": {"timeout": 300, "flags": "-d 3 --auto-tune --silent"},
     "arjun": {"timeout": 300, "flags": "--passive -m GET --quiet"},
     "x8": {"timeout": 300, "flags": "--disable-progress-bar -v 0"},
     "CorsMe": {"timeout": 120, "flags": ""},
@@ -93,3 +101,87 @@ def find_kiterunner_wordlist():
         if os.path.exists(p):
             return p
     return None
+
+
+def get_rate_limit_flags(tool_name, rate_limit=None, threads=None, delay=None):
+    """
+    Generate appropriate rate-limiting, concurrency, and delay CLI flags for a given tool.
+    Bug bounty programs require throttling to prevent server overload or WAF banning.
+    """
+    flags = []
+    t = tool_name.lower()
+
+    if t == "httpx":
+        if rate_limit is not None and rate_limit > 0:
+            flags.append(f"-rate-limit {rate_limit}")
+        if threads is not None and threads > 0:
+            flags.append(f"-threads {threads}")
+
+    elif t == "nuclei":
+        if rate_limit is not None and rate_limit > 0:
+            flags.append(f"-rate-limit {rate_limit}")
+        if threads is not None and threads > 0:
+            flags.append(f"-concurrency {threads}")
+
+    elif t == "katana":
+        if rate_limit is not None and rate_limit > 0:
+            flags.append(f"-rate-limit {rate_limit}")
+        if threads is not None and threads > 0:
+            flags.append(f"-concurrency {threads}")
+        if delay is not None and delay > 0:
+            flags.append(f"-delay {delay}")
+
+    elif t == "ffuf":
+        if rate_limit is not None and rate_limit > 0:
+            flags.append(f"-rate {rate_limit}")
+        if threads is not None and threads > 0:
+            flags.append(f"-t {threads}")
+        elif rate_limit is not None and rate_limit > 0:
+            # If rate limit is set, default ffuf threads to low to respect rate
+            flags.append("-t 10")
+        else:
+            flags.append("-t 50")
+
+    elif t == "feroxbuster":
+        if rate_limit is not None and rate_limit > 0:
+            flags.append(f"--rate-limit {rate_limit}")
+        if threads is not None and threads > 0:
+            flags.append(f"-t {threads}")
+
+    elif t == "gospider":
+        if threads is not None and threads > 0:
+            flags.append(f"-t {threads} -c {min(threads, 10)}")
+        if delay is not None and delay > 0:
+            flags.append(f"--delay {delay}")
+
+    elif t == "naabu":
+        if rate_limit is not None and rate_limit > 0:
+            flags.append(f"-rate {rate_limit}")
+
+    elif t == "dnsx":
+        if rate_limit is not None and rate_limit > 0:
+            flags.append(f"-rate-limit {rate_limit}")
+        if threads is not None and threads > 0:
+            flags.append(f"-t {threads}")
+
+    elif t == "subfinder":
+        if threads is not None and threads > 0:
+            flags.append(f"-t {threads}")
+
+    elif t == "dalfox":
+        if threads is not None and threads > 0:
+            flags.append(f"--worker {threads}")
+        if delay is not None and delay > 0:
+            flags.append(f"--delay {int(delay * 1000) if delay < 1 else int(delay)}")
+
+    elif t == "sqlmap":
+        if threads is not None and threads > 0:
+            flags.append(f"--threads={threads}")
+        if delay is not None and delay > 0:
+            flags.append(f"--delay={delay}")
+
+    elif t == "corsme":
+        if threads is not None and threads > 0:
+            flags.append(f"-t {threads}")
+
+    return " ".join(flags)

@@ -15,7 +15,8 @@ class Phase01Subdomains(BasePhase):
         # --- PASSIVE SOURCES ---
         tools = []
         if self.tool_available("subfinder"):
-            tools.append(("subfinder", f"subfinder -d {self.engine.domain} -silent -all -o {self.outdir}/subfinder.txt"))
+            s_rf = self.rate_limit_flags("subfinder")
+            tools.append(("subfinder", f"subfinder -d {self.engine.domain} {s_rf} -silent -all -o {self.outdir}/subfinder.txt"))
         if self.tool_available("assetfinder"):
             tools.append(("assetfinder", f"assetfinder --subs-only {self.engine.domain} > {self.outdir}/assetfinder.txt"))
         if self.tool_available("amass"):
@@ -36,7 +37,7 @@ class Phase01Subdomains(BasePhase):
             info("Running knockpy recon...")
             kf = self.outdir / "knockpy_output.json"
             rc, raw, _ = run_cmd(
-                f"knockpy -d {self.engine.domain} --recon --json 2>/dev/null",
+                f"knockpy -d {self.engine.domain} --recon --json",
                 timeout=600, capture=True, live=False,
             )
             if raw:
@@ -65,13 +66,11 @@ class Phase01Subdomains(BasePhase):
                         all_subs.update(ks)
                         good(f"knockpy (text): {len(ks)} subdomains")
 
-        # --- CERT.SH (historical subdomains) ---
+        # --- CERT.SH (historical subdomains via Python HTTP) ---
         info("Fetching crt.sh certificate transparency logs...")
-        rc, out, _ = run_cmd(
-            f"curl -sk 'https://crt.sh/?q=%25.{self.engine.domain}&output=json' 2>/dev/null",
-            timeout=60,
-        )
-        if rc == 0 and out:
+        from ..utils import safe_http_get
+        status, out, _ = safe_http_get(f"https://crt.sh/?q=%25.{self.engine.domain}&output=json", timeout=30)
+        if status == 200 and out:
             try:
                 data = json.loads(out)
                 crt_subs = set()
@@ -86,14 +85,15 @@ class Phase01Subdomains(BasePhase):
                     all_subs.update(crt_subs)
                     good(f"crt.sh: {len(crt_subs)} historical subdomains")
             except (json.JSONDecodeError, KeyError):
-                warn("crt.sh parsing failed (possible rate limit)")
+                warn("crt.sh parsing failed (possible rate limit or invalid JSON)")
 
         # --- RESOLVE with dnsx (filters wildcard / dead domains) ---
         if all_subs and self.tool_available("dnsx"):
             subs_file = self.outdir / "raw_subs.txt"
             save_to_file(subs_file, sorted(all_subs))
             resolved_file = self.outdir / "resolved.txt"
-            self.run_tool(f"dnsx -l {subs_file} -silent -o {resolved_file}", timeout=300)
+            dnsx_rf = self.rate_limit_flags("dnsx")
+            self.run_tool(f"dnsx -l {subs_file} {dnsx_rf} -silent -o {resolved_file}", timeout=300)
             if resolved_file.exists():
                 resolved = [l.strip().lower() for l in read_file(resolved_file) if l.strip()]
                 if resolved:

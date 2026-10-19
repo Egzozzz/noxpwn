@@ -30,8 +30,9 @@ class Phase04Takeover(BasePhase):
 
         if self.tool_available("nuclei"):
             nuc_file = self.outdir / "nuclei_takeover.txt"
+            nuc_rf = self.rate_limit_flags("nuclei")
             self.run_tool(
-                f"nuclei -l {hosts_file} -tags takeover -silent -o {nuc_file}",
+                f"nuclei -l {hosts_file} {nuc_rf} -tags takeover -silent -o {nuc_file}",
                 timeout=600,
             )
             if nuc_file.exists():
@@ -55,6 +56,7 @@ class Phase05Waf(BasePhase):
         waf_results = []
         for host in live_hosts[:10]:
             clean = host.replace("https://", "").replace("http://", "").split("/")[0]
+            self.engine.throttle()
             rc, out, err = run_cmd(f"wafw00f {host} -a", timeout=60, capture=True, live=False)
             if out:
                 for line in out.split("\n"):
@@ -83,7 +85,7 @@ class Phase06Screenshots(BasePhase):
         hosts_file = self.outdir / "targets.txt"
         save_to_file(hosts_file, targets)
         self.run_tool(
-            f"gowitness scan file -f {hosts_file} --screenshot-path {self.outdir}/ 2>/dev/null",
+            f"gowitness scan file -f {hosts_file} --screenshot-path {self.outdir}/",
             timeout=300,
         )
         good(f"Screenshots saved: {self.outdir}")

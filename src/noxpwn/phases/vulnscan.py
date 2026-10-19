@@ -46,7 +46,8 @@ class Phase14Cors(BasePhase):
 
         if self.tool_available("CorsMe"):
             cf = self.outdir / "cors_findings.txt"
-            self.run_tool(f"cat {hosts_file} | CorsMe -t 50 -output {cf}", timeout=120)
+            cors_rf = self.rate_limit_flags("corsme")
+            self.run_tool(f"CorsMe {cors_rf} -output {cf}", stdin_file=hosts_file, timeout=120)
             if cf.exists():
                 findings = read_file(cf)
                 if findings:
@@ -60,6 +61,7 @@ class Phase14Cors(BasePhase):
             origins = ["https://evil.com", "null", "https://evil.com:80", "https://evil.com:443"]
             for host in live_hosts[:5]:
                 for origin in origins:
+                    self.engine.throttle()
                     _, hdrs = _http_status_and_headers(host, method="HEAD", headers={"Origin": origin})
                     acao = hdrs.get("access-control-allow-origin")
                     if acao and (origin in acao or "*" in acao):
@@ -79,12 +81,13 @@ class Phase15Nuclei(BasePhase):
         hosts_file = self.outdir / "targets.txt"
         save_to_file(hosts_file, live_hosts)
         all_vulns = set()
+        nuc_rf = self.rate_limit_flags("nuclei")
 
         # Pass 1: All severity general scan
         info("Nuclei pass 1/4 — vulnerability scan...")
         of = self.outdir / "nuclei_vulns.txt"
         self.run_tool(
-            f"nuclei -l {hosts_file} -silent -severity critical,high,medium -exclude-severity info -o {of}",
+            f"nuclei -l {hosts_file} {nuc_rf} -silent -severity critical,high,medium -exclude-severity info -o {of}",
             timeout=900,
         )
         vulns = read_file(of)
@@ -98,7 +101,7 @@ class Phase15Nuclei(BasePhase):
         info("Nuclei pass 2/4 — technology detection...")
         tf = self.outdir / "nuclei_tech.txt"
         self.run_tool(
-            f"nuclei -l {hosts_file} -tags tech -silent -o {tf}",
+            f"nuclei -l {hosts_file} {nuc_rf} -tags tech -silent -o {tf}",
             timeout=300,
         )
         if tf.exists():
@@ -111,7 +114,7 @@ class Phase15Nuclei(BasePhase):
         info("Nuclei pass 3/4 — CVE & exploit scanning...")
         cf = self.outdir / "nuclei_cves.txt"
         self.run_tool(
-            f"nuclei -l {hosts_file} -tags cve -severity low,medium,high,critical -silent -o {cf}",
+            f"nuclei -l {hosts_file} {nuc_rf} -tags cve -severity low,medium,high,critical -silent -o {cf}",
             timeout=600,
         )
         if cf.exists():
@@ -126,7 +129,7 @@ class Phase15Nuclei(BasePhase):
         info("Nuclei pass 4/4 — exposure & misconfiguration scan...")
         ef = self.outdir / "nuclei_exposures.txt"
         self.run_tool(
-            f"nuclei -l {hosts_file} -tags exposure,misconfig,backup,config -silent -o {ef}",
+            f"nuclei -l {hosts_file} {nuc_rf} -tags exposure,misconfig,backup,config -silent -o {ef}",
             timeout=600,
         )
         if ef.exists():
@@ -163,8 +166,10 @@ class Phase16Xss(BasePhase):
         if self.tool_available("dalfox"):
             info("Running dalfox XSS scanner...")
             df_out = self.outdir / "dalfox_results.txt"
+            df_rf = self.rate_limit_flags("dalfox")
             self.run_tool(
-                f"cat {candidates_file} | dalfox scan --silence --no-color -o {df_out} 2>/dev/null",
+                f"dalfox scan {df_rf} --silence --no-color -o {df_out}",
+                stdin_file=candidates_file,
                 timeout=600,
             )
             if df_out.exists():
@@ -176,8 +181,25 @@ class Phase16Xss(BasePhase):
                 else:
                     info("dalfox: no XSS verified")
         else:
-            warn("dalfox not installed. Manual verification required:")
-            print(f"  {c('cat {}/xss_candidates.txt | dalfox scan'.format(self.outdir), 'cyan')}")
+            warn("dalfox not installed. Running reflection test on top candidates...")
+            from ..utils import safe_http_get
+            import urllib.parse
+            canary = "noxpwn_xss_probe"
+            for u in candidates[:15]:
+                self.engine.throttle()
+                # Test reflection
+                parsed = urllib.parse.urlparse(u)
+                qs = urllib.parse.parse_qs(parsed.query)
+                if qs:
+                    test_qs = {k: canary for k in qs}
+                    test_url = urllib.parse.urlunparse((
+                        parsed.scheme, parsed.netloc, parsed.path,
+                        parsed.params, urllib.parse.urlencode(test_qs), parsed.fragment
+                    ))
+                    status, body, _ = safe_http_get(test_url, timeout=6)
+                    if status and canary in body:
+                        self.add_finding("high", f"Reflected parameter: {test_url}")
+                        good(f"Reflected parameter found: {test_url}")
 
         print(f"\n  {c('Top XSS candidates:', 'bold')}")
         for u in candidates[:10]:
@@ -203,15 +225,15 @@ class Phase17Sqli(BasePhase):
         if self.tool_available("sqlmap"):
             info("Running sqlmap on SQLi candidates...")
             sm_out = self.outdir / "sqlmap"
+            sm_rf = self.rate_limit_flags("sqlmap")
             self.run_tool(
-                f"sqlmap -m {candidates_file} --batch --risk=3 --level=3 "
+                f"sqlmap -m {candidates_file} --batch --risk=3 --level=3 {sm_rf} "
                 f"--output-dir={sm_out} --flush-session --random-agent "
-                f"--tamper=space2comment 2>/dev/null",
+                f"--tamper=space2comment",
                 timeout=600,
             )
             if sm_out.is_dir():
                 good("sqlmap scan completed — check report in output directory")
-                # Count log files as approximate finding count
                 log_files = sum(1 for _ in sm_out.rglob("log"))
                 if log_files > 0:
                     self.add_finding("high", f"SQLi: {log_files} potential findings in sqlmap logs")
@@ -226,11 +248,12 @@ class Phase17Sqli(BasePhase):
 
     def run_sqlmap_serial(self, candidates):
         """Fallback: run sqlmap on each URL individually."""
+        sm_rf = self.rate_limit_flags("sqlmap")
         for i, url in enumerate(candidates[:5]):
             smd = self.outdir / f"sqlmap_{i}"
             run_cmd(
-                f"sqlmap -u \"{url}\" --batch --risk=3 --level=3 "
-                f"--output-dir={smd} --flush-session --random-agent 2>/dev/null",
+                f"sqlmap -u \"{url}\" --batch --risk=3 --level=3 {sm_rf} "
+                f"--output-dir={smd} --flush-session --random-agent",
                 timeout=300,
             )
 
@@ -241,35 +264,35 @@ class Phase18OpenRedirect(BasePhase):
 
     def run(self, live_hosts):
         self.header()
-        if not self.tool_available("nuclei"):
-            warn("nuclei not installed, skipping redirect scan")
-            return
+        nuc_rf = self.rate_limit_flags("nuclei")
 
-        hosts_file = self.outdir / "targets.txt"
-        save_to_file(hosts_file, live_hosts)
+        if self.tool_available("nuclei"):
+            hosts_file = self.outdir / "targets.txt"
+            save_to_file(hosts_file, live_hosts)
 
-        info("Scanning for open redirect vulnerabilities...")
-        rf = self.outdir / "open_redirects.txt"
-        self.run_tool(
-            f"nuclei -l {hosts_file} -tags redirect -silent -o {rf}",
-            timeout=300,
-        )
+            info("Scanning for open redirect vulnerabilities with nuclei...")
+            rf = self.outdir / "open_redirects.txt"
+            self.run_tool(
+                f"nuclei -l {hosts_file} {nuc_rf} -tags redirect -silent -o {rf}",
+                timeout=300,
+            )
 
-        if rf.exists():
-            findings = read_file(rf)
-            if findings:
-                good(f"Open redirects: {len(findings)} found!")
-                for f in findings[:10]:
-                    self.add_finding("medium", f"Open redirect: {f.strip()[:120]}")
-            else:
-                info("No open redirects detected")
+            if rf.exists():
+                findings = read_file(rf)
+                if findings:
+                    good(f"Open redirects: {len(findings)} found!")
+                    for f in findings[:10]:
+                        self.add_finding("medium", f"Open redirect: {f.strip()[:120]}")
+                else:
+                    info("No open redirects detected by nuclei")
 
-        # Additional curl-based check for basic redirect patterns
+        # Additional Python-based check for basic redirect patterns
         info("Testing basic redirect parameters...")
         redirect_params = ["url", "redirect", "next", "return", "dest", "redirect_uri", "return_url", "r"]
         test_urls = live_hosts[:3]
         for host in test_urls:
             for param in redirect_params:
+                self.engine.throttle()
                 url = f"{host}?{param}=https://evil.com"
                 location = _redirect_location(url)
                 if location and "evil.com" in location:
@@ -285,6 +308,7 @@ class Phase19ExposedFiles(BasePhase):
     def run(self, live_hosts):
         self.header()
         findings = set()
+        nuc_rf = self.rate_limit_flags("nuclei")
 
         # Check with nuclei for exposure templates
         if self.tool_available("nuclei"):
@@ -294,15 +318,16 @@ class Phase19ExposedFiles(BasePhase):
             info("Scanning for exposed files with nuclei...")
             nf = self.outdir / "nuclei_exposed_files.txt"
             self.run_tool(
-                f"nuclei -l {hosts_file} -tags exposure,config,backup,git -silent -o {nf}",
+                f"nuclei -l {hosts_file} {nuc_rf} -tags exposure,config,backup,git -silent -o {nf}",
                 timeout=300,
             )
             if nf.exists():
                 nresults = read_file(nf)
                 findings.update(nresults)
 
-        # Curl-based check for common sensitive files
-        info("Checking common sensitive paths via curl...")
+        # Python-based check for common sensitive files with safe throttling
+        info("Checking common sensitive paths via built-in HTTP prober...")
+        from ..utils import safe_http_get
         sensitive_paths = [
             "/.git/config", "/.env", "/.env.example", "/.gitignore",
             "/backup", "/backup.zip", "/backup.tar.gz", "/wp-config.php",
@@ -316,7 +341,8 @@ class Phase19ExposedFiles(BasePhase):
         for host in live_hosts[:5]:
             for path in sensitive_paths:
                 url = f"{host}{path}"
-                code, _ = _http_status_and_headers(url)
+                self.engine.throttle()
+                code, _, _ = safe_http_get(url, timeout=6)
                 if code in (200, 401, 403):
                     finding = f"{url} [{code}]"
                     findings.add(finding)

@@ -81,29 +81,34 @@ def check_cargo():
 
 
 def pip_install(pkg_name):
-    rc, out, err = run_cmd(f"pip3 install {pkg_name}", timeout=120, live=True)
+    py_exec = sys.executable or "python3"
+    rc, out, err = run_cmd(f'"{py_exec}" -m pip install {pkg_name}', timeout=120, live=True)
     if rc == 0:
         return True
-    rc, out, err = run_cmd(f"python -m pip install {pkg_name}", timeout=120, live=True)
+    rc, out, err = run_cmd(f"pip3 install {pkg_name}", timeout=120, live=True)
     return rc == 0
 
 
 def go_install(repo):
+    # Ensure GO111MODULE is set in current environment
+    os.environ["GO111MODULE"] = "on"
     rc, out, err = run_cmd(f"go install {repo}", timeout=300, live=True)
+    from .utils import setup_environment_paths
+    setup_environment_paths()
     if rc == 0:
-        return True
-    rc2, _, _ = run_cmd(f"GO111MODULE=on go install {repo}", timeout=300, live=True)
-    if rc2 == 0:
         return True
     alt = repo.replace("@latest", "/@latest")
     if alt != repo:
-        rc3, _, _ = run_cmd(f"go install {alt}", timeout=300, live=True)
-        return rc3 == 0
+        rc2, _, _ = run_cmd(f"go install {alt}", timeout=300, live=True)
+        setup_environment_paths()
+        return rc2 == 0
     return False
 
 
 def cargo_install(pkg_name):
     rc, out, err = run_cmd(f"cargo install {pkg_name}", timeout=600, live=True)
+    from .utils import setup_environment_paths
+    setup_environment_paths()
     return rc == 0
 
 
@@ -114,11 +119,12 @@ def git_install(repo, name):
     tmpdir = _os.path.join(tempfile.gettempdir(), name)
     if _os.path.exists(tmpdir):
         _shutil.rmtree(tmpdir, ignore_errors=True)
-    rc, out, err = run_cmd(f"git clone {repo} {tmpdir}", timeout=120, live=True)
+    rc, out, err = run_cmd(f"git clone {repo} \"{tmpdir}\"", timeout=120, live=True)
     if rc == 0:
-        rc2, _, _ = run_cmd(f"pip3 install -e {tmpdir}", timeout=60, live=True)
+        py_exec = sys.executable or "python3"
+        rc2, _, _ = run_cmd(f'"{py_exec}" -m pip install -e "{tmpdir}"', timeout=90, live=True)
         if rc2 != 0:
-            rc2, _, _ = run_cmd(f"python -m pip install -e {tmpdir}", timeout=60, live=True)
+            rc2, _, _ = run_cmd(f"pip3 install -e \"{tmpdir}\"", timeout=90, live=True)
         return rc2 == 0
     return False
 
@@ -150,8 +156,14 @@ def install_tool(name):
             return git_install(repo, name)
         elif ttype == "apt":
             pm = detect_package_manager()
-            if pm:
-                rc, _, _ = run_cmd(f"sudo {pm} install -y {repo}", timeout=120)
+            if pm == "winget":
+                rc, _, _ = run_cmd(f"winget install --id {repo} -e --accept-source-agreements --accept-package-agreements", timeout=300, live=True)
+                return rc == 0
+            elif pm == "brew":
+                rc, _, _ = run_cmd(f"brew install {repo}", timeout=300, live=True)
+                return rc == 0
+            elif pm:
+                rc, _, _ = run_cmd(f"sudo {pm} install -y {repo}", timeout=120, live=True)
                 return rc == 0
             return False
     except Exception as e:
@@ -161,7 +173,10 @@ def install_tool(name):
     return False
 
 
-def auto_install_missing(tools_list):
+def auto_install_missing(tools_list, non_interactive=False):
+    from .utils import setup_environment_paths
+    setup_environment_paths()
+
     missing = []
     for t in tools_list:
         if not check_tool(t):
@@ -172,11 +187,14 @@ def auto_install_missing(tools_list):
         return True
 
     warn(f"Missing tools: {', '.join(missing)}")
-    sys.stdout.write(f" {c('[?]', 'yellow')} Auto-install missing tools? [Y/n]: ")
-    try:
-        ans = input().strip().lower()
-    except:
+    if non_interactive:
         ans = "y"
+    else:
+        sys.stdout.write(f" {c('[?]', 'yellow')} Auto-install missing tools? [Y/n]: ")
+        try:
+            ans = input().strip().lower()
+        except Exception:
+            ans = "y"
 
     if ans in ("", "y", "yes"):
         for t in missing:
@@ -184,7 +202,8 @@ def auto_install_missing(tools_list):
                 good(f"{t} installed successfully!")
             else:
                 warn(f"Could not auto-install {t}. Install manually.")
+        setup_environment_paths()
         return True
     else:
-        warn("Skipping installation. Some tools may not work.")
+        warn("Skipping installation. Fallback modes will be used where available.")
         return False

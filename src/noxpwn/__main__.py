@@ -38,8 +38,11 @@ def main():
 Examples:
   noxpwn -u https://example.com
   noxpwn -u https://example.com -o ./results
+  noxpwn -u https://example.com --rate-limit 5 --threads 5    # Safe bug bounty throttling
+  noxpwn -u https://example.com -rl 10 -t 5 -d 0.2           # Rate limit + delay
   noxpwn -u https://example.com --quick
   noxpwn -u https://example.com --skip-install
+  noxpwn -u https://example.com --auto-install
   noxpwn -u https://example.com --skip-tools amass,gospider
   noxpwn --list-tools
   noxpwn --install-all
@@ -49,6 +52,10 @@ Examples:
 
     parser.add_argument("-u", "--url", help="Target URL (e.g. https://example.com)")
     parser.add_argument("-o", "--output", default="./noxpwn_output", help="Output directory (default: ./noxpwn_output)")
+    parser.add_argument("-rl", "--rate-limit", type=int, default=None, help="Rate limit: max requests per second across tools (e.g. 5 or 10)")
+    parser.add_argument("-t", "--threads", type=int, default=10, help="Concurrency / threads for tools (default: 10)")
+    parser.add_argument("-d", "--delay", type=float, default=None, help="Delay between requests in seconds (e.g. 0.2, 0.5, 1)")
+    parser.add_argument("--auto-install", action="store_true", help="Automatically install missing tools without prompt")
     parser.add_argument("--skip-install", action="store_true", help="Skip tool installation check")
     parser.add_argument("--list-tools", action="store_true", help="List all tools used by noxpwn")
     parser.add_argument("--install-all", action="store_true", help="Install all tools and exit")
@@ -107,13 +114,16 @@ Examples:
         if skip_tools:
             all_tool_names = [t for t in all_tool_names if t.lower() not in skip_tools]
             info(f"Skipping excluded tools: {', '.join(skip_tools)}")
-        auto_install_missing(all_tool_names)
+        auto_install_missing(all_tool_names, non_interactive=args.auto_install)
 
     config = {
         "quick": args.quick,
         "verbose": args.verbose,
         "from_phase": args.from_phase,
         "skip_tools": skip_tools,
+        "rate_limit": args.rate_limit,
+        "threads": args.threads,
+        "delay": args.delay,
     }
 
     engine = NoxPwnEngine(args.url, args.output, config)

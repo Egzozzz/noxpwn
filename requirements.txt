@@ -1,0 +1,5 @@
+# noxpwn dependencies
+# Note: noxpwn is built with standard library modules (urllib, subprocess, ssl, json, argparse)
+# for zero-dependency execution out of the box!
+# Optional packages for development / testing:
+pytest>=7.0.0

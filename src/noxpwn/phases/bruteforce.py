@@ -31,12 +31,13 @@ class Phase09Directories(BasePhase):
 
         # ffuf — recursive directory brute-force
         if self.tool_available("ffuf"):
+            ffuf_rf = self.rate_limit_flags("ffuf")
             for host in live_hosts[:3]:
                 clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                 ffuf_out = f"{self.outdir}/ffuf_{clean}.json"
                 self.run_tool(
-                    f"ffuf -u {host}/FUZZ -w {wordlist} -mc 200,204,301,302,307,401,403,405,500,501 "
-                    f"-t 50 -recursion -recursion-depth 2 -maxtime 300 -s -of json -o {ffuf_out}",
+                    f"ffuf -u {host}/FUZZ -w {wordlist} {ffuf_rf} -mc 200,204,301,302,307,401,403,405,500,501 "
+                    f"-recursion -recursion-depth 2 -maxtime 300 -s -of json -o {ffuf_out}",
                     timeout=600,
                 )
                 if os.path.exists(ffuf_out):
@@ -59,8 +60,8 @@ class Phase09Directories(BasePhase):
                     clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                     ffuf_api_out = f"{self.outdir}/ffuf_api_{clean}.json"
                     self.run_tool(
-                    f"ffuf -u {host}/FUZZ -w {api_wordlist} -mc 200,204,301,302,307,401,403,405,500,501 "
-                    f"-t 50 -s -of json -o {ffuf_api_out}",
+                        f"ffuf -u {host}/FUZZ -w {api_wordlist} {ffuf_rf} -mc 200,204,301,302,307,401,403,405,500,501 "
+                        f"-s -of json -o {ffuf_api_out}",
                         timeout=300,
                     )
                     if os.path.exists(ffuf_api_out):
@@ -76,11 +77,12 @@ class Phase09Directories(BasePhase):
 
         # feroxbuster — deeper scan
         if self.tool_available("feroxbuster"):
+            ferox_rf = self.rate_limit_flags("feroxbuster")
             for host in live_hosts[:2]:
                 clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                 ferox_out = self.outdir / f"ferox_{clean}.txt"
                 self.run_tool(
-                    f"feroxbuster -u {host} -w {wordlist} -d 3 -t 30 --auto-tune "
+                    f"feroxbuster -u {host} -w {wordlist} {ferox_rf} -d 3 --auto-tune "
                     f"--silent -o {ferox_out}",
                     timeout=300,
                 )
@@ -114,7 +116,7 @@ class Phase10Params(BasePhase):
                 clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                 outf = self.outdir / f"arjun_{clean}.json"
                 self.run_tool(
-                    f"arjun -u {host} -m GET -oJ {outf} 2>/dev/null",
+                    f"arjun -u {host} -m GET -oJ {outf}",
                     timeout=300,
                 )
                 if outf.exists():

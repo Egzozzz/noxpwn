@@ -1,236 +1,218 @@
-# NOXPWN - Auto Bug Bounty Engine
+# NOXPWN - All-in-One Bug Bounty Reconnaissance & Vulnerability Engine
 
-> **19 Phases · 32 Tools · Fully Automated Reconnaissance & Vulnerability Scanning**
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.3.0-blue.svg" alt="Version 1.3.0">
+  <img src="https://img.shields.io/badge/python-3.7%2B-brightgreen.svg" alt="Python 3.7+">
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey.svg" alt="Cross-Platform">
+  <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License MIT">
+  <img src="https://img.shields.io/badge/Bug%20Bounty-Ready%20%26%20Throttled-red.svg" alt="Bug Bounty Ready">
+</p>
 
-NOXPWN is an automated bug bounty and penetration testing tool that chains 32 industry-standard security tools into a single pipeline. It handles everything from subdomain discovery to vulnerability scanning with zero manual intervention.
+```
+  _  _  ___  _  _ ___  _    _ _  _ 
+| \| |/ _ \| \/ | _ \| |  | | \| |
+| .` | (_) |>  <|  _/| |/\| | .` |
+|_|\_|\___//_/\_|_|  |__/\__|_|\_|
+```
 
----
+> **19 Phases · 32 Tools · Smart Rate Limiting & Throttling · Built-in Fallbacks · Zero-Error Cross-Platform Engine**
 
-## Features
-
-| Phase | Module | Tools Used |
-|-------|--------|------------|
-| 01 | Subdomain Discovery | subfinder, assetfinder, amass, crt.sh, dnsx, gotator, puredns, knockpy |
-| 02 | Port Scanning | naabu, nmap |
-| 03 | Live Host Detection | httpx + tech-detect |
-| 04 | Subdomain Takeover | subzy, nuclei (takeover tags) |
-| 05 | WAF Detection | wafw00f |
-| 06 | Screenshots | gowitness (smart mode) |
-| 07 | URL Collection | katana, gau, waybackurls, hakrawler, gospider |
-| 08 | JavaScript Analysis | subjs, jsleak, LinkFinder, mantra, regex secrets |
-| 09 | Directory Bruteforce | ffuf, feroxbuster |
-| 10 | Parameter Discovery | arjun, x8 |
-| 11 | API & GraphQL | nuclei (api/graphql/swagger/exposure) + Python GraphQL probe |
-| 12 | Parameterized URLs | httpx filtering |
-| 13 | Pattern Classification | gf (9 patterns) |
-| 14 | CORS Misconfiguration | CorsMe, Python fallback |
-| 15 | Vulnerability Scan | nuclei (error/high/medium) |
-| 16 | XSS Report | dalfox suggestions |
-| 17 | SQLi Report | sqlmap suggestions |
-| 18 | Open Redirect | nuclei + Python redirect probe |
-| 19 | Exposed Files | nuclei + Python check |
-
-**Smart Features:**
-- Smart Screenshots: Full screenshot mode only when critical findings are discovered
-- XSS/SQLi Detection: Flags potential vulnerabilities with manual testing commands
-- Auto-Install: Detects and installs missing tools automatically
-- Quick Mode: Skips slow scans for rapid recon
-- Skip Tools: Exclude specific tools with `--skip-tools`
-- Self-Update: Update to latest version with `--update`
-- Per-Phase Error Isolation: One crash doesn't stop the pipeline
-- Detailed Report: Generates comprehensive scan reports
+**NOXPWN** is an automated reconnaissance and vulnerability scanning framework designed specifically for bug bounty hunters and penetration testers. It chains industry-standard tools (including **subfinder**, **httpx**, **linkfinder**, **mantra**, **katana**, **ffuf**, **nuclei**, **dalfox**, and **sqlmap**) into an end-to-end automated pipeline while delivering findings **live to your terminal in real time**.
 
 ---
 
-## Installation
+## 🔥 What's New in v1.3.0
 
-### Prerequisites
-- Python 3.7+
-- Go (for Go-based tools)
-- Rust/Cargo (for x8)
-- Linux/Kali environment (recommended) or Windows (see below)
+- 🛡️ **Bug Bounty Safe Throttling & Rate Limiting**:
+  - Configure maximum requests per second (`-rl`, `--rate-limit`).
+  - Control concurrency and workers (`-t`, `--threads`).
+  - Set custom delays between requests (`-d`, `--delay`).
+  - Dynamically injected into all underlying tools (`httpx`, `nuclei`, `katana`, `ffuf`, `feroxbuster`, `dalfox`, `sqlmap`, `dnsx`, `naabu`, `gospider`).
+- ⚡ **Real-Time Findings Stream**: Vulnerabilities, exposed keys, endpoints, and live hosts are streamed to the console with color-coded severity badges immediately as they are discovered.
+- 🔄 **Built-in Python Fallback Engine**: If an external tool (e.g. `httpx`, `linkfinder`, `mantra`, `dalfox`) is missing, NOXPWN doesn't crash—it seamlessly activates built-in Python probers, JS regex endpoint/secret extractors, and parameter reflection tests.
+- 💻 **Full Cross-Platform Support (Windows, Linux, macOS)**: Native subprocess pipes replace fragile Unix-only shell constructs (`cat file | cmd`), with automatic Go/Cargo environment path discovery and PowerShell/CMD compatibility.
+- 📦 **Non-Interactive Auto-Install**: Use `--auto-install` to detect and install missing dependencies automatically.
 
-### Quick Install (run directly, no setup needed)
+---
+
+## 📋 19 Automated Phases
+
+| Phase | Phase Name | Primary Tools & Fallback | Output Directory |
+|:-----:|:-----------|:-------------------------|:-----------------|
+| **01** | Subdomain Discovery | `subfinder`, `assetfinder`, `amass`, `knockpy`, `crt.sh`, `dnsx`, `puredns`, `gotator` | `01-subdomain-discovery/` |
+| **02** | Port & Service Scanning | `naabu`, `nmap` | `02-port-scanning/` |
+| **03** | Live Host Detection | `httpx` (Fallback: Python SSL-tolerant prober + title/server detector) | `03-live-hosts/` |
+| **04** | Subdomain Takeover | `subzy`, `nuclei` (takeover templates) | `04-subdomain-takeover/` |
+| **05** | WAF Fingerprinting | `wafw00f` (with throttled host probes) | `05-waf-detection/` |
+| **06** | Screenshot Triage | `gowitness` (smart triage for high-value targets) | `06-screenshots/` |
+| **07** | URL Collection | `katana`, `gau`, `waybackurls`, `hakrawler`, `gospider` | `07-urls/` |
+| **08** | JavaScript Analysis | `subjs`, `jsleak`, `LinkFinder`, `mantra` (Fallback: regex secrets + endpoint engine) | `08-js-analysis/` |
+| **09** | Directory & API Fuzzing | `ffuf`, `feroxbuster` (cross-platform SecLists / local wordlists) | `09-directories/` |
+| **10** | Parameter Discovery | `arjun`, `x8` | `10-parameters/` |
+| **11** | API & GraphQL Discovery | `nuclei` (api/swagger/graphql) + Python introspection probe | `11-api/` |
+| **12** | Parameterized URL Filtering | `httpx` status-code filtering | `12-param-urls/` |
+| **13** | Vulnerability Pattern Matching | `gf` (9 pattern categories) / Regex classifier fallback | `13-pattern-classification/` |
+| **14** | CORS Misconfiguration | `CorsMe` / Python origin reflection probe | `14-cors/` |
+| **15** | Vulnerability Scanning | `nuclei` (General, CVE, Exposures, Misconfigs) | `15-vulnerability-scan/` |
+| **16** | XSS Analysis | `dalfox` / Python parameter reflection verification | `16-xss/` |
+| **17** | SQL Injection Analysis | `sqlmap` (batch, automated risk/level heuristics) | `17-sqli/` |
+| **18** | Open Redirect Detection | `nuclei` + Python redirect header prober | `18-open-redirect/` |
+| **19** | Exposed Files & Secrets | `nuclei` + Python sensitive file detector (git, env, backup, aws) | `19-exposed-files/` |
+
+---
+
+## 🚀 Installation
+
+### 1. Clone & Set Up
+
 ```bash
 git clone https://github.com/Egzozzz/noxpwn.git
 cd noxpwn
+```
+
+### 2. Install Package
+
+**On Linux / macOS:**
+```bash
 chmod +x noxpwn
-
-# Run directly
-./noxpwn --help
-./noxpwn -u https://example.com
-```
-
-### Windows
-```bat
-@echo off
 pip install -e .
-noxpwn.cmd -u https://example.com
 ```
 
-### Full Install (system-wide)
-```bash
+**On Windows:**
+```cmd
 pip install -e .
-noxpwn -u https://example.com
+```
+*(Or use `noxpwn.cmd` directly without pip)*
+
+### 3. Check & Install Security Tools
+
+Check which tools are currently installed:
+```bash
+noxpwn --list-tools
 ```
 
-### Install All Tools
+Install all missing tools automatically:
 ```bash
-./noxpwn --install-all
+noxpwn --install-all
 ```
 
 ---
 
-## Usage
+## 🎯 Usage Examples
 
-### Basic Scan
+### 1. Safe Bug Bounty Scan (Respect Program Rate Limits)
+Limit requests per second to avoid WAF IP bans or overwhelming the target:
 ```bash
-./noxpwn -u https://target.com
+noxpwn -u https://example.com --rate-limit 5 --threads 5 --delay 0.2
 ```
 
-### Quick Mode (skip slow scans)
+### 2. Full Recon & Scan (Standard Mode)
 ```bash
-./noxpwn -u https://target.com --quick
+noxpwn -u https://example.com -o ./target_results
 ```
 
-### Custom Output Directory
+### 3. Quick Reconnaissance Mode
+Skips deep brute-force scans (`ffuf`, `feroxbuster`, `nuclei` full passes) for quick triage:
 ```bash
-./noxpwn -u https://target.com -o ./my_results
+noxpwn -u https://example.com --quick -rl 10
 ```
 
-### Start from Specific Phase
+### 4. Non-Interactive / CI-CD Auto-Install
+Detects missing tools and automatically installs them without interactive prompts:
 ```bash
-./noxpwn -u https://target.com --from-phase 8
+noxpwn -u https://example.com --auto-install
 ```
 
-### Skip Specific Tools
+### 5. Resume from Specific Phase
+Resume a scan from a specific phase number (e.g., jump directly to JavaScript analysis Phase 8):
 ```bash
-./noxpwn -u https://target.com --skip-tools amass,gospider,ffuf
+noxpwn -u https://example.com --from-phase 8
 ```
 
-### Skip Tool Installation Check
+### 6. Exclude Slow or Heavy Tools
 ```bash
-./noxpwn -u https://target.com --skip-install
+noxpwn -u https://example.com --skip-tools amass,gospider,feroxbuster
 ```
 
-### Install All Dependencies
+### 7. Self-Update
+Keep noxpwn up-to-date with the latest templates and improvements:
 ```bash
-./noxpwn --install-all
-```
-
-### Update noxpwn (from GitHub)
-```bash
-./noxpwn --update
+noxpwn --update
 ```
 
 ---
 
-## Output Structure
+## ⚙️ Command-Line Options
+
+```
+Options:
+  -h, --help            Show this help message and exit
+  -u URL, --url URL     Target URL (e.g. https://example.com)
+  -o OUTPUT, --output   Output directory (default: ./noxpwn_output)
+  -rl RATE, --rate-limit
+                        Rate limit: max requests per second across tools (e.g. 5, 10)
+  -t THREADS, --threads
+                        Concurrency / thread count for tools (default: 10)
+  -d SEC, --delay SEC   Delay between requests in seconds (e.g. 0.2, 0.5, 1.0)
+  --auto-install        Automatically install missing tools without prompt
+  --skip-install        Skip tool installation check
+  --list-tools          List all tools and their installation status
+  --install-all         Install all missing tools and exit
+  --quick               Quick mode (skips slow brute-force and full vulnerability scans)
+  --verbose             Verbose output with detailed tracebacks
+  -v, --version         Show noxpwn version and exit
+  --from-phase NUM      Start scanning from specific phase number (1-19)
+  --skip-tools LIST     Exclude specific tools (comma or space separated)
+  --update              Update noxpwn to the latest version from GitHub
+```
+
+---
+
+## 📁 Output Directory Hierarchy
 
 ```
 noxpwn_output/
-└── target.com/
-    ├── 01-subdomain-discovery/    # Subdomain lists
-    ├── 02-port-scanning/          # Port scan results
-    ├── 03-live-hosts/             # Live hosts + tech stack
-    ├── 04-subdomain-takeover/     # Takeover findings
-    ├── 05-waf-detection/          # WAF results
-    ├── 06-screenshots/            # Gowitness screenshots
-    ├── 07-urls/                   # Collected URLs
-    ├── 08-js-analysis/            # JS files, endpoints, secrets
-    ├── 09-directories/            # Discovered paths
-    ├── 10-parameters/             # Parameter findings
-    ├── 11-api/                    # API endpoints
-    ├── 12-param-urls/             # Parameterized URLs
-    ├── 13-pattern-classification/ # GF pattern matches
-    ├── 14-cors/                   # CORS findings
-    ├── 15-vulnerability-scan/     # Nuclei scan results
-    └── report/                    # Scan report
+└── example.com/
+    ├── 01-subdomain-discovery/    # all_subs.txt, crt_sh.txt, subfinder.txt, resolved.txt
+    ├── 02-port-scanning/          # naabu_ports.txt, nmap_scan.txt
+    ├── 03-live-hosts/             # live_urls.txt, live_hosts.txt, technologies.txt
+    ├── 04-subdomain-takeover/     # subzy_results.txt, nuclei_takeover.txt
+    ├── 05-waf-detection/          # waf_summary.txt
+    ├── 06-screenshots/            # gowitness captures
+    ├── 07-urls/                   # all_urls.txt, discovered_params.txt
+    ├── 08-js-analysis/            # downloaded_js/, endpoints.txt, secrets.txt
+    ├── 09-directories/            # found_paths.txt, ffuf_*.json
+    ├── 10-parameters/             # arjun_*.json, x8_*.txt
+    ├── 11-api/                    # api_findings.txt, graphql_endpoints.txt
+    ├── 12-param-urls/             # param_urls.txt, live_param_urls.txt
+    ├── 13-pattern-classification/ # xss_candidates.txt, sqli_candidates.txt, lfi, ssrf
+    ├── 14-cors/                   # cors_findings.txt
+    ├── 15-vulnerability-scan/     # all_nuclei_findings.txt, cves.txt, exposures.txt
+    ├── 16-xss/                    # dalfox_results.txt, xss_candidates.txt
+    ├── 17-sqli/                   # sqlmap/ findings and logs
+    ├── 18-open-redirect/          # open_redirects.txt, redirect_params_found.txt
+    ├── 19-exposed-files/          # exposed_files.txt
+    └── report/                    # scan_report.txt (comprehensive summary)
 ```
 
 ---
 
-## Tools
+## 🧪 Testing
 
-### Required (24 tools)
+NOXPWN includes an automated test suite verifying cross-platform command execution, rate-limit flag construction, engine lifecycle, and phase error isolation:
 
-| Tool | Type | Purpose |
-|------|------|---------|
-| subfinder | go | Subdomain discovery |
-| assetfinder | go | Subdomain discovery |
-| dnsx | go | DNS resolution |
-| naabu | go | Port scanning |
-| nmap | apt | Service/script scanning |
-| httpx | go | Live host detection + tech |
-| subzy | go | Subdomain takeover |
-| wafw00f | pip | WAF detection |
-| gowitness | go | Screenshots |
-| katana | go | URL crawling |
-| gau | go | URL collection |
-| hakrawler | go | URL crawling |
-| gospider | go | URL crawling |
-| waybackurls | go | URL collection |
-| subjs | go | JS file discovery |
-| jsleak | go | JS endpoint extraction |
-| ffuf | go | Directory bruteforce |
-| arjun | pip | Parameter discovery |
-| x8 | cargo | Hidden parameter discovery |
-| gf | go | Pattern matching |
-| CorsMe | go | CORS misconfiguration |
-| nuclei | go | Vulnerability scanning |
-| dalfox | go | XSS scanning |
-| sqlmap | pip | SQLi detection |
-
-### Optional (8 tools)
-
-| Tool | Type | Purpose |
-|------|------|---------|
-| amass | go | Deep subdomain discovery |
-| gotator | go | Subdomain permutation |
-| puredns | go | DNS resolution |
-| linkfinder | git+pip | JS endpoint extraction |
-| feroxbuster | apt | Directory bruteforce |
-| unfurl | go | URL parsing |
-| linkfinder | git+pip | JS endpoint extraction |
-| mantra | go | JS secret analysis |
-| knockpy | git+pip | Passive/brute subdomain recon |
+```bash
+python -m unittest discover -s tests -p "test_*.py" -v
+```
 
 ---
 
-## Supported Attack Types
+## ⚖️ Disclaimer
 
-- Subdomain Enumeration
-- Live Host Discovery
-- Port & Service Detection
-- Subdomain Takeover
-- WAF Fingerprinting
-- URL Crawling & Collection
-- JavaScript Analysis & Secret Discovery
-- Directory & File Bruteforce
-- Parameter Discovery
-- API & GraphQL Endpoint Discovery
-- XSS Pattern Detection
-- SQLi Pattern Detection
-- CORS Misconfiguration
-- General Vulnerability Scanning
-- Screenshot Triage
-- Open Redirect Detection
-- Exposed Files & Configuration Discovery
+**NOXPWN is intended strictly for authorized penetration testing, security auditing, and bug bounty programs where explicit written permission has been granted.** Scanning targets without prior consent is illegal. The author and contributors assume no liability for misuse of this tool.
 
 ---
 
-## Disclaimer
+## 📜 License
 
-This tool is for **authorized security testing only**. Use only on systems you own or have explicit permission to test. Unauthorized use may violate applicable laws.
-
----
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file.
-
----
-
-## Credits
-
-NOXPWN chains together 31 open-source security tools created by the amazing security community. Special thanks to all tool authors.
+Distributed under the **MIT License**. See `LICENSE` for more information.
