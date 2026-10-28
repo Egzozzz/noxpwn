@@ -85,9 +85,9 @@ class BasePhase:
 
         # Detect executable failure and circuit-break further retries
         err_lower = (err + " " + out).lower()
-        if rc != 0 and any(f in err_lower for f in [
+        if (rc in (126, 127, 9009)) or (rc != 0 and any(f in err_lower for f in [
             "not recognized", "not found", "no such file", "winerror 2", "cannot find the file", "command not found"
-        ]):
+        ])):
             self.mark_tool_failed(first_word, "executable not found")
             return []
 

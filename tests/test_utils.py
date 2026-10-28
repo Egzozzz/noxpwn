@@ -1,7 +1,14 @@
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+# Ensure project root is in sys.path
+root_dir = str(Path(__file__).resolve().parent.parent)
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
 from src.noxpwn.utils import (
     save_to_file, read_file, merge_lists, check_tool, setup_environment_paths, run_cmd
 )
