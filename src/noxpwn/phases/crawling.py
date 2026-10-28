@@ -43,12 +43,14 @@ class Phase07Urls(BasePhase):
         save_to_file(hosts_file, live_hosts)
 
         # Katana (recursive crawl)
-        if self.tool_available("katana"):
+        katana_cmd = self.get_tool_cmd("katana")
+        if katana_cmd and not self.is_skipped("katana"):
             kf = self.outdir / "katana.txt"
             katana_rf = self.rate_limit_flags("katana")
             self.run_tool(
-                f"katana -list {hosts_file} {katana_rf} -silent -recursion -depth 3 -jc -kf all -o {kf}",
+                f"{katana_cmd} -list {hosts_file} {katana_rf} -silent -recursion -depth 3 -jc -kf all -o {kf}",
                 timeout=600,
+                tool_name="katana"
             )
             if kf.exists():
                 urls = read_file(kf)
@@ -56,44 +58,53 @@ class Phase07Urls(BasePhase):
                 good(f"katana (recursive): {len(urls)} URLs")
 
         # Gau (getallurls)
-        if self.tool_available("gau"):
+        gau_cmd = self.get_tool_cmd("gau")
+        if gau_cmd and not self.is_skipped("gau"):
             for host in live_hosts[:5]:
+                if "gau" in self.engine.failed_tools:
+                    break
                 h = host.replace("https://", "").replace("http://", "").split("/")[0]
                 gf = self.outdir / f"gau_{h}.txt"
-                self.run_tool(f"gau --subs {h} --o {gf}", timeout=300)
+                self.run_tool(f"{gau_cmd} --subs {h} --o {gf}", timeout=300, tool_name="gau")
                 if gf.exists():
                     urls = read_file(gf)
                     all_urls.update(urls)
                     good(f"gau ({h}): {len(urls)} URLs")
 
         # Waybackurls
-        if self.tool_available("waybackurls"):
+        wb_cmd = self.get_tool_cmd("waybackurls")
+        if wb_cmd and not self.is_skipped("waybackurls"):
             wf = self.outdir / "waybackurls.txt"
-            self.run_tool(f"waybackurls > {wf}", stdin_file=hosts_file, timeout=300)
+            self.run_tool(f"{wb_cmd} > {wf}", stdin_file=hosts_file, timeout=300, tool_name="waybackurls")
             if wf.exists():
                 urls = read_file(wf)
                 all_urls.update(urls)
                 good(f"waybackurls: {len(urls)} URLs")
 
         # Hakrawler
-        if self.tool_available("hakrawler"):
+        hak_cmd = self.get_tool_cmd("hakrawler")
+        if hak_cmd and not self.is_skipped("hakrawler"):
             for host in live_hosts[:3]:
+                if "hakrawler" in self.engine.failed_tools:
+                    break
                 h = host.replace("https://", "").replace("http://", "").split("/")[0]
                 hf = self.outdir / f"hakrawler_{h}.txt"
-                self.run_tool(f"hakrawler -d 3 -insecure >> {hf}", stdin_text=f"{host}\n", timeout=300)
+                self.run_tool(f"{hak_cmd} -d 3 -insecure >> {hf}", stdin_text=f"{host}\n", timeout=300, tool_name="hakrawler")
                 if hf.exists():
                     urls = read_file(hf)
                     all_urls.update(urls)
                     good(f"hakrawler ({h}): {len(urls)} URLs")
 
         # Gospider
-        if self.tool_available("gospider"):
+        gospider_cmd = self.get_tool_cmd("gospider")
+        if gospider_cmd and not self.is_skipped("gospider"):
             gd = self.outdir / "gospider_output"
             gospider_rf = self.rate_limit_flags("gospider")
             self.run_tool(
-                f"gospider -S {hosts_file} {gospider_rf} -d 3 --no-redirect -c 20 -t 10 "
+                f"{gospider_cmd} -S {hosts_file} {gospider_rf} -d 3 --no-redirect -c 20 -t 10 "
                 f"--blacklist '.(jpg|jpeg|gif|css|png|svg|woff|ttf|ico|pdf)' -o {gd}",
                 timeout=600,
+                tool_name="gospider"
             )
             if gd.is_dir():
                 gurls = set()
@@ -171,20 +182,36 @@ class Phase08Js(BasePhase):
                 good(f"jsleak: {len(jr)} potential secrets/endpoints")
 
         # LinkFinder — extract endpoints from JS
-        lf_paths = [
-            "LinkFinder/linkfinder.py",
-            os.path.expanduser("~/LinkFinder/linkfinder.py"),
-            "/opt/LinkFinder/linkfinder.py",
-        ]
-        lf_avail = self.tool_available("linkfinder") or any(os.path.exists(p) for p in lf_paths)
-        if lf_avail:
-            lf_cmd = _resolve_cmd("linkfinder", "linkfinder", next((p for p in lf_paths if os.path.exists(p)), None))
+        lf_cmd = None
+        if not self.is_skipped("linkfinder"):
+            lf_paths = [
+                "LinkFinder/linkfinder.py",
+                os.path.expanduser("~/LinkFinder/linkfinder.py"),
+                "/opt/LinkFinder/linkfinder.py",
+            ]
+            lf_script = next((p for p in lf_paths if os.path.exists(p)), None)
+            if lf_script:
+                lf_cmd = f'"{sys.executable}" "{lf_script}"'
+            elif self.tool_available("linkfinder"):
+                lf_cmd = self.get_tool_cmd("linkfinder")
+
+            # Verify LinkFinder command is actually operational before looping over 30 files
+            if lf_cmd:
+                t_rc, _, _ = run_cmd(f"{lf_cmd} -h", timeout=10)
+                if t_rc != 0:
+                    self.mark_tool_failed("linkfinder", "command execution failed")
+                    lf_cmd = None
+
+        if lf_cmd:
             sources = downloaded if downloaded else js_urls[:30]
             for src in sources:
                 if any(ch in src for ch in (';', '&', '|', '`', '$', '\n', '\r')):
                     continue
                 safe_src = src.replace('"', '\\"')
-                results = self.run_tool(f'{lf_cmd} -i "{safe_src}" -o cli', timeout=60)
+                results = self.run_tool(f'{lf_cmd} -i "{safe_src}" -o cli', timeout=60, tool_name="linkfinder")
+                if "linkfinder" in self.engine.failed_tools:
+                    # Tool failed during execution, circuit-break out of loop
+                    break
                 for line in results:
                     line = line.strip()
                     if not line or line.startswith(("Usage:", "Error:", "[", "URL:", "METHOD:", "ENDPOINTS", "No endpoint", "Running")):
@@ -198,9 +225,9 @@ class Phase08Js(BasePhase):
                         endpoints.add(line)
             if endpoints:
                 good(f"LinkFinder: {len(endpoints)} endpoints extracted")
-        else:
-            # Built-in Python endpoint extractor fallback
-            info("LinkFinder not installed. Using built-in regex endpoint extractor...")
+        elif not self.is_skipped("linkfinder"):
+            # Built-in Python endpoint extractor fallback (zero external dependencies)
+            info("Using built-in regex endpoint extractor...")
             endpoint_pattern = re.compile(
                 r"""(?:"|')(((?:[a-zA-Z]{1,10}://|//)[^"'/]{1,}\.[a-zA-Z]{2,}[^"']{0,})|((?:/|\.\./|\./)[^"'><,;| *()(%%$^/\\\[\]][^"'><,;|()]{1,})|([a-zA-Z0-9_\-/]{1,}/[a-zA-Z0-9_\-/]{1,}\.(?:[a-zA-Z]{1,4}|action)(?:[\?|#][^"\\']*)|[a-zA-Z0-9_\-/]{1,}/[a-zA-Z0-9_\-/]{3,}(?:[\?|#][^"\\']*))|([a-zA-Z0-9_\-]{1,}\.(?:php|asp|aspx|jsp|json|action|xml|html|txt|log)(?:[\?|#][^"\\']*)))"""
             )

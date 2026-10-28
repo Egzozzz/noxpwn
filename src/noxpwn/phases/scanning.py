@@ -14,34 +14,39 @@ class Phase02Ports(BasePhase):
         open_ports = []
 
         # naabu — port scanning (top 1000)
-        if self.tool_available("naabu"):
+        naabu_cmd = self.get_tool_cmd("naabu")
+        if naabu_cmd and not self.is_skipped("naabu"):
             naabu_out = self.outdir / "naabu_ports.txt"
             naabu_rf = self.rate_limit_flags("naabu")
             self.run_tool(
-                f"naabu -list {subs_file} {naabu_rf} -silent -top-ports 1000 -o {naabu_out}",
+                f"{naabu_cmd} -list {subs_file} {naabu_rf} -silent -top-ports 1000 -o {naabu_out}",
                 timeout=600,
+                tool_name="naabu"
             )
             if naabu_out.exists():
                 open_ports = read_file(naabu_out)
                 good(f"naabu: {len(open_ports)} open ports (top 1000)")
 
         # nmap — service + script scan on discovered ports
-        if self.tool_available("nmap") and open_ports:
+        nmap_cmd = self.get_tool_cmd("nmap")
+        if nmap_cmd and not self.is_skipped("nmap") and open_ports:
             # naabu outputs host:port — extract unique hosts for nmap
             hosts = sorted(set(line.split(":")[0].strip() for line in open_ports if ":" in line))
             targets_file = self.outdir / "nmap_targets.txt"
             save_to_file(targets_file, hosts)
             self.run_tool(
-                f"nmap -sV -sC -T4 -iL {targets_file} -oN {self.outdir}/nmap_scan.txt",
+                f"{nmap_cmd} -sV -sC -T4 -iL {targets_file} -oN {self.outdir}/nmap_scan.txt",
                 timeout=900,
+                tool_name="nmap"
             )
             good("nmap service+script scan complete")
-        elif self.tool_available("nmap") and not open_ports:
+        elif nmap_cmd and not self.is_skipped("nmap") and not open_ports:
             # No open ports from naabu, scan top ports directly
             info("naabu found no ports. Running nmap on top 100 ports...")
             self.run_tool(
-                f"nmap -sV -sC -T4 --top-ports 100 -iL {subs_file} -oN {self.outdir}/nmap_scan.txt",
+                f"{nmap_cmd} -sV -sC -T4 --top-ports 100 -iL {subs_file} -oN {self.outdir}/nmap_scan.txt",
                 timeout=600,
+                tool_name="nmap"
             )
             if os.path.exists(self.outdir / "nmap_scan.txt"):
                 good("nmap scan complete")
@@ -59,12 +64,14 @@ class Phase03Httpx(BasePhase):
         save_to_file(subs_file, subdomains)
         live_hosts = []
 
-        if self.tool_available("httpx"):
+        httpx_cmd = self.get_tool_cmd("httpx")
+        if httpx_cmd and not self.is_skipped("httpx"):
             live_file = self.outdir / "live_hosts.txt"
             httpx_rf = self.rate_limit_flags("httpx")
             self.run_tool(
-                f"httpx -l {subs_file} {httpx_rf} -silent -tech-detect -status-code -content-length -title -web-server -o {live_file}",
+                f"{httpx_cmd} -l {subs_file} {httpx_rf} -silent -tech-detect -status-code -content-length -title -web-server -o {live_file}",
                 timeout=600,
+                tool_name="httpx"
             )
             if live_file.exists():
                 raw = read_file(live_file)

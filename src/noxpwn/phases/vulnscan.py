@@ -1,7 +1,8 @@
+import ssl
 import urllib.request
 import urllib.error
 from .base import BasePhase
-from ..utils import info, good, warn, save_to_file, read_file, run_cmd, c
+from ..utils import info, good, warn, save_to_file, read_file, run_cmd, c, safe_http_get
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -10,23 +11,37 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def _get_ssl_context():
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+
 def _http_status_and_headers(url, method="GET", headers=None, timeout=10):
-    """Cross-platform HTTP request returning (status, lowercase headers dict)."""
+    """Cross-platform, SSL-tolerant HTTP request returning (status, lowercase headers dict)."""
     try:
-        req = urllib.request.Request(url, method=method, headers=headers or {})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        req_headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) noxpwn/1.3.0"}
+        if headers:
+            req_headers.update(headers)
+        req = urllib.request.Request(url, method=method, headers=req_headers)
+        with urllib.request.urlopen(req, timeout=timeout, context=_get_ssl_context()) as resp:
             return resp.status, {k.lower(): v for k, v in resp.headers.items()}
     except urllib.error.HTTPError as e:
-        return e.code, {k.lower(): v for k, v in e.headers.items()}
+        hdrs = {k.lower(): v for k, v in e.headers.items()} if hasattr(e, "headers") else {}
+        return e.code, hdrs
     except Exception:
         return None, {}
 
 
 def _redirect_location(url, timeout=10):
-    """Return the Location header of a request without following redirects."""
+    """Return the Location header of a request without following redirects (SSL tolerant)."""
     try:
-        opener = urllib.request.build_opener(_NoRedirect())
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPSHandler(context=_get_ssl_context()),
+            _NoRedirect()
+        )
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) noxpwn/1.3.0"})
         resp = opener.open(req, timeout=timeout)
         return resp.headers.get("Location", "")
     except urllib.error.HTTPError as e:
@@ -43,29 +58,96 @@ class Phase14Cors(BasePhase):
         self.header()
         hosts_file = self.outdir / "targets.txt"
         save_to_file(hosts_file, live_hosts)
+        findings = []
 
-        if self.tool_available("CorsMe"):
+        # 1. External CorsMe execution if available and not skipped
+        corsme_cmd = self.get_tool_cmd("CorsMe") or self.get_tool_cmd("corsme")
+        if corsme_cmd and not self.is_skipped("corsme"):
+            info(f"Running CorsMe ({corsme_cmd})...")
             cf = self.outdir / "cors_findings.txt"
             cors_rf = self.rate_limit_flags("corsme")
-            self.run_tool(f"CorsMe {cors_rf} -output {cf}", stdin_file=hosts_file, timeout=120)
+            tool_out = self.run_tool(
+                f"{corsme_cmd} {cors_rf} -wildcard -output {cf}",
+                stdin_file=hosts_file,
+                timeout=120,
+                tool_name="CorsMe"
+            )
             if cf.exists():
-                findings = read_file(cf)
-                if findings:
-                    for f in findings[:10]:
-                        self.add_finding("medium", f"CORS: {f.strip()[:120]}")
-                    good(f"CorsMe: {len(findings)} misconfigurations")
-                else:
-                    info("CORS: no issues found")
-        else:
-            warn("CorsMe not installed. Running basic check...")
-            origins = ["https://evil.com", "null", "https://evil.com:80", "https://evil.com:443"]
-            for host in live_hosts[:5]:
-                for origin in origins:
+                file_findings = read_file(cf)
+                if file_findings:
+                    findings.extend(file_findings)
+            if tool_out:
+                for line in tool_out:
+                    if any(k in line.lower() for k in ["misconfig", "vulnerable", "allow-origin", "origin"]):
+                        if line not in findings:
+                            findings.append(line)
+
+            if findings:
+                for f in findings[:10]:
+                    self.add_finding("medium", f"CORS (CorsMe): {f.strip()[:120]}")
+                good(f"CorsMe: {len(findings)} misconfigurations found!")
+            else:
+                info("CorsMe finished: no misconfigurations reported")
+
+        # 2. Built-in Comprehensive Python CORS Engine (always reliable fallback & enrichment)
+        if not findings and not self.is_skipped("cors"):
+            info("Testing CORS headers via built-in engine (origin reflection & credential leaks)...")
+            target_domain = self.engine.domain
+            test_origins = [
+                "https://evil-attacker.com",
+                "null",
+                f"https://{target_domain}.evil-attacker.com",
+                f"https://evil{target_domain}",
+                f"https://{target_domain}_evil.com",
+            ]
+
+            for host in live_hosts[:10]:
+                for origin in test_origins:
                     self.engine.throttle()
-                    _, hdrs = _http_status_and_headers(host, method="HEAD", headers={"Origin": origin})
-                    acao = hdrs.get("access-control-allow-origin")
-                    if acao and (origin in acao or "*" in acao):
-                        self.add_finding("medium", f"CORS misconfig: {host} (origin: {origin})")
+                    # Test both GET and OPTIONS for maximum coverage
+                    for method in ("GET", "OPTIONS"):
+                        _, hdrs = _http_status_and_headers(
+                            host,
+                            method=method,
+                            headers={"Origin": origin, "Access-Control-Request-Method": "GET"}
+                        )
+                        if not hdrs:
+                            continue
+
+                        acao = hdrs.get("access-control-allow-origin", "")
+                        acac = hdrs.get("access-control-allow-credentials", "").lower() == "true"
+
+                        if not acao:
+                            continue
+
+                        if origin in acao:
+                            if acac:
+                                msg = f"{host} reflects {origin} with ACAC:true [{method}]"
+                                findings.append(f"[CRITICAL] {msg}")
+                                self.add_finding("high", f"Vulnerable CORS (Credentials Allowed): {msg}")
+                                good(f"🔥 High Severity CORS: {msg}")
+                            else:
+                                msg = f"{host} reflects {origin} [{method}]"
+                                findings.append(f"[MEDIUM] {msg}")
+                                self.add_finding("medium", f"CORS Origin Reflection: {msg}")
+                            break
+                        elif acao == "*" and acac:
+                            msg = f"{host} wildcard ACAO with ACAC:true [{method}]"
+                            findings.append(f"[HIGH] {msg}")
+                            self.add_finding("high", f"CORS Wildcard with Credentials: {msg}")
+                            break
+                        elif acao == "*":
+                            msg = f"{host} allows wildcard origin (*)"
+                            if msg not in findings:
+                                findings.append(f"[INFO] {msg}")
+                            break
+
+        if findings:
+            save_to_file(self.outdir / "cors_findings.txt", findings)
+            good(f"Total CORS findings: {len(findings)}")
+        else:
+            info("No CORS misconfigurations found")
+        return findings
 
 
 class Phase15Nuclei(BasePhase):
@@ -74,8 +156,10 @@ class Phase15Nuclei(BasePhase):
 
     def run(self, live_hosts):
         self.header()
-        if not self.tool_available("nuclei"):
-            warn("nuclei not installed")
+        nuclei_cmd = self.get_tool_cmd("nuclei")
+        if not nuclei_cmd or self.is_skipped("nuclei"):
+            if not self.is_skipped("nuclei"):
+                warn("nuclei not installed")
             return
 
         hosts_file = self.outdir / "targets.txt"
@@ -87,8 +171,9 @@ class Phase15Nuclei(BasePhase):
         info("Nuclei pass 1/4 — vulnerability scan...")
         of = self.outdir / "nuclei_vulns.txt"
         self.run_tool(
-            f"nuclei -l {hosts_file} {nuc_rf} -silent -severity critical,high,medium -exclude-severity info -o {of}",
+            f"{nuclei_cmd} -l {hosts_file} {nuc_rf} -silent -severity critical,high,medium -exclude-severity info -o {of}",
             timeout=900,
+            tool_name="nuclei"
         )
         vulns = read_file(of)
         all_vulns.update(vulns)
@@ -97,12 +182,16 @@ class Phase15Nuclei(BasePhase):
             for v in vulns[:10]:
                 self.add_finding("high", f"Nuclei: {v.strip()[:120]}")
 
+        if "nuclei" in self.engine.failed_tools:
+            return
+
         # Pass 2: Technology detection (non-critical, for enrichment)
         info("Nuclei pass 2/4 — technology detection...")
         tf = self.outdir / "nuclei_tech.txt"
         self.run_tool(
-            f"nuclei -l {hosts_file} {nuc_rf} -tags tech -silent -o {tf}",
+            f"{nuclei_cmd} -l {hosts_file} {nuc_rf} -tags tech -silent -o {tf}",
             timeout=300,
+            tool_name="nuclei"
         )
         if tf.exists():
             techs = read_file(tf)
@@ -110,12 +199,16 @@ class Phase15Nuclei(BasePhase):
                 save_to_file(self.outdir / "technologies_detected.txt", techs)
                 info(f"Technologies detected: {len(techs)}")
 
+        if "nuclei" in self.engine.failed_tools:
+            return
+
         # Pass 3: CVE-specific scan
         info("Nuclei pass 3/4 — CVE & exploit scanning...")
         cf = self.outdir / "nuclei_cves.txt"
         self.run_tool(
-            f"nuclei -l {hosts_file} {nuc_rf} -tags cve -severity low,medium,high,critical -silent -o {cf}",
+            f"{nuclei_cmd} -l {hosts_file} {nuc_rf} -tags cve -severity low,medium,high,critical -silent -o {cf}",
             timeout=600,
+            tool_name="nuclei"
         )
         if cf.exists():
             cves = read_file(cf)
@@ -125,12 +218,16 @@ class Phase15Nuclei(BasePhase):
                 for v in cves[:10]:
                     self.add_finding("high", f"CVE: {v.strip()[:120]}")
 
+        if "nuclei" in self.engine.failed_tools:
+            return
+
         # Pass 4: Exposure & misconfiguration scan
         info("Nuclei pass 4/4 — exposure & misconfiguration scan...")
         ef = self.outdir / "nuclei_exposures.txt"
         self.run_tool(
-            f"nuclei -l {hosts_file} {nuc_rf} -tags exposure,misconfig,backup,config -silent -o {ef}",
+            f"{nuclei_cmd} -l {hosts_file} {nuc_rf} -tags exposure,misconfig,backup,config -silent -o {ef}",
             timeout=600,
+            tool_name="nuclei"
         )
         if ef.exists():
             exposures = read_file(ef)
@@ -163,14 +260,16 @@ class Phase16Xss(BasePhase):
         save_to_file(candidates_file, candidates)
 
         # Auto-scan with dalfox
-        if self.tool_available("dalfox"):
+        dalfox_cmd = self.get_tool_cmd("dalfox")
+        if dalfox_cmd and not self.is_skipped("dalfox"):
             info("Running dalfox XSS scanner...")
             df_out = self.outdir / "dalfox_results.txt"
             df_rf = self.rate_limit_flags("dalfox")
             self.run_tool(
-                f"dalfox scan {df_rf} --silence --no-color -o {df_out}",
+                f"{dalfox_cmd} scan {df_rf} --silence --no-color -o {df_out}",
                 stdin_file=candidates_file,
                 timeout=600,
+                tool_name="dalfox"
             )
             if df_out.exists():
                 results = read_file(df_out)
@@ -181,7 +280,8 @@ class Phase16Xss(BasePhase):
                 else:
                     info("dalfox: no XSS verified")
         else:
-            warn("dalfox not installed. Running reflection test on top candidates...")
+            if not self.is_skipped("dalfox"):
+                warn("dalfox not installed. Running reflection test on top candidates...")
             from ..utils import safe_http_get
             import urllib.parse
             canary = "noxpwn_xss_probe"
@@ -222,15 +322,17 @@ class Phase17Sqli(BasePhase):
         save_to_file(candidates_file, candidates)
 
         # Auto-scan with sqlmap
-        if self.tool_available("sqlmap"):
+        sqlmap_cmd = self.get_tool_cmd("sqlmap")
+        if sqlmap_cmd and not self.is_skipped("sqlmap"):
             info("Running sqlmap on SQLi candidates...")
             sm_out = self.outdir / "sqlmap"
             sm_rf = self.rate_limit_flags("sqlmap")
             self.run_tool(
-                f"sqlmap -m {candidates_file} --batch --risk=3 --level=3 {sm_rf} "
+                f"{sqlmap_cmd} -m {candidates_file} --batch --risk=3 --level=3 {sm_rf} "
                 f"--output-dir={sm_out} --flush-session --random-agent "
                 f"--tamper=space2comment",
                 timeout=600,
+                tool_name="sqlmap"
             )
             if sm_out.is_dir():
                 good("sqlmap scan completed — check report in output directory")
@@ -238,7 +340,8 @@ class Phase17Sqli(BasePhase):
                 if log_files > 0:
                     self.add_finding("high", f"SQLi: {log_files} potential findings in sqlmap logs")
         else:
-            warn("sqlmap not installed. Manual verification required:")
+            if not self.is_skipped("sqlmap"):
+                warn("sqlmap not installed. Manual verification required:")
             for u in candidates[:5]:
                 print(f"    {c(f'sqlmap -u \"{u}\" --batch --risk=3 --level=3', 'cyan')}")
 
@@ -265,16 +368,18 @@ class Phase18OpenRedirect(BasePhase):
     def run(self, live_hosts):
         self.header()
         nuc_rf = self.rate_limit_flags("nuclei")
+        nuclei_cmd = self.get_tool_cmd("nuclei")
 
-        if self.tool_available("nuclei"):
+        if nuclei_cmd and not self.is_skipped("nuclei"):
             hosts_file = self.outdir / "targets.txt"
             save_to_file(hosts_file, live_hosts)
 
             info("Scanning for open redirect vulnerabilities with nuclei...")
             rf = self.outdir / "open_redirects.txt"
             self.run_tool(
-                f"nuclei -l {hosts_file} {nuc_rf} -tags redirect -silent -o {rf}",
+                f"{nuclei_cmd} -l {hosts_file} {nuc_rf} -tags redirect -silent -o {rf}",
                 timeout=300,
+                tool_name="nuclei"
             )
 
             if rf.exists():
@@ -309,17 +414,19 @@ class Phase19ExposedFiles(BasePhase):
         self.header()
         findings = set()
         nuc_rf = self.rate_limit_flags("nuclei")
+        nuclei_cmd = self.get_tool_cmd("nuclei")
 
         # Check with nuclei for exposure templates
-        if self.tool_available("nuclei"):
+        if nuclei_cmd and not self.is_skipped("nuclei"):
             hosts_file = self.outdir / "targets.txt"
             save_to_file(hosts_file, live_hosts)
 
             info("Scanning for exposed files with nuclei...")
             nf = self.outdir / "nuclei_exposed_files.txt"
             self.run_tool(
-                f"nuclei -l {hosts_file} {nuc_rf} -tags exposure,config,backup,git -silent -o {nf}",
+                f"{nuclei_cmd} -l {hosts_file} {nuc_rf} -tags exposure,config,backup,git -silent -o {nf}",
                 timeout=300,
+                tool_name="nuclei"
             )
             if nf.exists():
                 nresults = read_file(nf)

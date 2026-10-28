@@ -9,6 +9,84 @@ from .engine import NoxPwnEngine
 from . import __version__ as VERSION
 
 
+TOOL_ALIASES = {
+    "cors": "corsme",
+    "corsme": "corsme",
+    "crt": "crt.sh",
+    "crtsh": "crt.sh",
+    "crt.sh": "crt.sh",
+    "lf": "linkfinder",
+    "linkfinder": "linkfinder",
+    "wf": "wafw00f",
+    "waf": "wafw00f",
+    "wafw00f": "wafw00f",
+    "sub": "subfinder",
+    "subfinder": "subfinder",
+    "asset": "assetfinder",
+    "assetfinder": "assetfinder",
+    "katana": "katana",
+    "gospider": "gospider",
+    "dalfox": "dalfox",
+    "xss": "dalfox",
+    "sqlmap": "sqlmap",
+    "sqli": "sqlmap",
+    "nuclei": "nuclei",
+    "cve": "nuclei",
+    "ffuf": "ffuf",
+    "ferox": "feroxbuster",
+    "feroxbuster": "feroxbuster",
+    "arjun": "arjun",
+    "x8": "x8",
+    "params": "arjun",
+    "paramspider": "paramspider",
+    "qsreplace": "qsreplace",
+    "anew": "anew",
+    "httpx": "httpx",
+    "naabu": "naabu",
+    "nmap": "nmap",
+    "dnsx": "dnsx",
+    "amass": "amass",
+    "gau": "gau",
+    "wayback": "waybackurls",
+    "waybackurls": "waybackurls",
+    "hakrawler": "hakrawler",
+    "graphql": "graphql",
+    "gql": "graphql",
+    "subjs": "subjs",
+    "jsleak": "jsleak",
+    "knockpy": "knockpy",
+    "subzy": "subzy",
+    "gowitness": "gowitness",
+}
+
+
+def normalize_skip_tools(skip_args):
+    """Normalize and expand skip_tools tokens including aliases and separators."""
+    if not skip_args:
+        return set()
+
+    raw_tokens = []
+    for part in skip_args:
+        # Split on commas and spaces
+        for item in str(part).replace(",", " ").split():
+            clean = item.strip().lower()
+            if clean:
+                raw_tokens.append(clean)
+
+    expanded = set()
+    for tok in raw_tokens:
+        expanded.add(tok)
+        canonical = TOOL_ALIASES.get(tok)
+        if canonical:
+            expanded.add(canonical)
+        # Also add all alias keys pointing to the same canonical
+        for alias_name, target in TOOL_ALIASES.items():
+            if target == tok or (canonical and target == canonical):
+                expanded.add(alias_name)
+
+    return expanded
+
+
 def update_noxpwn():
     print(banner())
     info("Checking for updates...")
@@ -63,7 +141,7 @@ Examples:
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
     parser.add_argument("-v", "--version", action="store_true", help="Show version and exit")
     parser.add_argument("--from-phase", type=int, default=1, help="Start from specific phase number")
-    parser.add_argument("--skip-tools", nargs="+", help="Tools to skip (space or comma separated, e.g. --skip-tools ffuf feroxbuster arjun)")
+    parser.add_argument("-st", "--skip-tools", "--skip-tool", dest="skip_tools", nargs="+", default=[], help="Tools to skip (e.g. -st corsme nuclei or --skip-tools ffuf,arjun)")
     parser.add_argument("--update", action="store_true", help="Update noxpwn to latest version from GitHub")
 
     args = parser.parse_args()
@@ -76,10 +154,7 @@ Examples:
         update_noxpwn()
         return
 
-    skip_tools = []
-    if args.skip_tools:
-        for part in args.skip_tools:
-            skip_tools.extend(t.strip().lower() for t in part.split(",") if t.strip())
+    skip_tools = normalize_skip_tools(args.skip_tools)
 
     if args.list_tools:
         print(banner())

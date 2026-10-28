@@ -44,6 +44,28 @@ class TestPhases(unittest.TestCase):
         phase.run()
         self.assertEqual(len(self.engine.findings["high"]), 0)
 
+    def test_tool_skipping(self):
+        self.engine.skip_tools = {"corsme", "linkfinder", "crt.sh"}
+        phase = BasePhase(self.engine)
+        self.assertTrue(phase.is_skipped("corsme"))
+        self.assertTrue(phase.is_skipped("CorsMe"))
+        self.assertTrue(phase.is_skipped("linkfinder"))
+        self.assertFalse(phase.tool_available("corsme"))
+        self.assertIsNone(phase.get_tool_cmd("corsme"))
+
+    def test_tool_failure_circuit_breaker(self):
+        phase = BasePhase(self.engine)
+        # Manually trigger failure marking
+        phase.mark_tool_failed("faketool", "not found")
+        self.assertIn("faketool", self.engine.failed_tools)
+        self.assertFalse(phase.tool_available("faketool"))
+        self.assertIsNone(phase.get_tool_cmd("faketool"))
+
+        # run_tool with a non-existent command should auto-mark it as failed
+        res = phase.run_tool("nonexistent_binary_xyz_12345 --help", timeout=5)
+        self.assertEqual(res, [])
+        self.assertIn("nonexistent_binary_xyz_12345", self.engine.failed_tools)
+
 
 if __name__ == "__main__":
     unittest.main()

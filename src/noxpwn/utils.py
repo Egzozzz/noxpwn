@@ -153,6 +153,11 @@ def run_cmd(cmd, timeout=600, capture=True, live=False, stdin_file=None, stdin_t
                 print(line, end='', flush=True)
                 output_lines.append(line.rstrip())
             process.wait(timeout=timeout)
+            if process.stdout:
+                try:
+                    process.stdout.close()
+                except Exception:
+                    pass
             return process.returncode, "\n".join(output_lines), ""
 
         r = subprocess.run(
@@ -212,17 +217,22 @@ def merge_lists(files):
     return result
 
 
-def check_tool(name):
-    """Check if tool executable or Python module exists."""
+def find_tool_executable(name):
+    """
+    Locate the exact working executable or python module command for a tool.
+    Returns executable string (e.g. 'subfinder', 'C:\\Users\\...\\go\\bin\\CorsMe.exe',
+    '"python" -m arjun'), or None if not installed/found.
+    """
     setup_environment_paths()
 
+    # 1. Direct which check (exact name)
     if shutil.which(name):
-        return True
+        return name
     lname = name.lower()
     if lname != name and shutil.which(lname):
-        return True
+        return lname
 
-    # Check common Go and Cargo directories
+    # 2. Known Go and Cargo binary directories
     known_dirs = [
         os.path.expanduser("~/go/bin"),
         os.path.expanduser("~\\go\\bin"),
@@ -234,37 +244,46 @@ def check_tool(name):
         "C:\\Program Files\\Go\\bin",
         "C:\\Go\\bin",
     ]
+    candidates = [name, lname]
+    if not name.lower().endswith(".exe"):
+        candidates.extend([f"{name}.exe", f"{lname}.exe"])
+
     for kd in known_dirs:
-        for candidate in (name, lname, f"{name}.exe", f"{lname}.exe"):
-            if os.path.exists(os.path.join(kd, candidate)):
-                return True
+        for candidate in candidates:
+            full_path = os.path.join(kd, candidate)
+            if os.path.exists(full_path):
+                return f'"{full_path}"' if " " in full_path else full_path
 
-    # Check python modules
+    # 3. Python module executable fallback
     python_module_map = {
-        "corsy": ["corsy"],
-        "wafw00f": ["wafw00f"],
-        "arjun": ["arjun"],
-        "linkfinder": ["linkfinder", "LinkFinder"],
-        "secretfinder": ["secretfinder", "SecretFinder"],
-        "graphw00f": ["graphw00f"],
-        "mantra": ["mantra"],
-        "knockpy": ["knockpy"],
-        "sqlmap": ["sqlmap"],
+        "corsy": "corsy",
+        "wafw00f": "wafw00f",
+        "arjun": "arjun",
+        "secretfinder": "secretfinder",
+        "graphw00f": "graphw00f",
+        "mantra": "mantra",
+        "knockpy": "knockpy",
+        "sqlmap": "sqlmap",
     }
-    if name in python_module_map:
-        for mod in python_module_map[name]:
-            try:
-                subprocess.run(
-                    [sys.executable, "-c", f"import {mod}"],
-                    capture_output=True,
-                    check=True,
-                    timeout=5
-                )
-                return True
-            except Exception:
-                pass
+    mod = python_module_map.get(lname)
+    if mod:
+        try:
+            r = subprocess.run(
+                [sys.executable, "-c", f"import {mod}"],
+                capture_output=True,
+                check=True,
+                timeout=5
+            )
+            return f'"{sys.executable}" -m {mod}'
+        except Exception:
+            pass
 
-    return False
+    return None
+
+
+def check_tool(name):
+    """Check if tool executable or Python module exists."""
+    return find_tool_executable(name) is not None
 
 
 def ensure_dir(path):

@@ -20,13 +20,16 @@ class Phase13Classify(BasePhase):
         idor = []
 
         # GF Pattern Classification
-        if self.tool_available("gf"):
+        gf_cmd = self.get_tool_cmd("gf")
+        if gf_cmd and not self.is_skipped("gf"):
             uf = self.outdir / "urls.txt"
             save_to_file(uf, param_urls)
             patterns = ["xss", "sqli", "rce", "lfi", "ssrf", "redirect", "rfi", "ssti", "idor"]
             for pattern in patterns:
+                if "gf" in self.engine.failed_tools:
+                    break
                 of = self.outdir / f"gf_{pattern}.txt"
-                self.run_tool(f"cat {uf} | gf {pattern} > {of}", timeout=60)
+                self.run_tool(f"{gf_cmd} {pattern} > {of}", stdin_file=str(uf), timeout=60, tool_name="gf")
                 matched = read_file(of)
                 if matched:
                     good(f"gf {pattern}: {len(matched)} URLs matched")
@@ -43,7 +46,8 @@ class Phase13Classify(BasePhase):
                     elif pattern == "idor":
                         idor = matched
         else:
-            warn("gf not installed. Using regex pattern matching.")
+            if not self.is_skipped("gf"):
+                warn("gf not installed or failed. Using regex pattern matching.")
             xss = [u for u in param_urls if any(p in u.lower() for p in ["q=", "s=", "search=", "query=", "text=", "keyword="])]
             sqli = [u for u in param_urls if any(p in u.lower() for p in ["id=", "page=", "cat=", "product=", "view=", "pid="])]
             lfi = [u for u in param_urls if any(p in u.lower() for p in ["file=", "path=", "include=", "template=", "load=", "page="])]

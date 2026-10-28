@@ -44,7 +44,9 @@ class NoxPwnEngine:
         self.config = config or {}
         self.quick = self.config.get("quick", False)
         self.from_phase = self.config.get("from_phase", 1)
-        self.skip_tools = set(self.config.get("skip_tools", []))
+        self.skip_tools = set(t.lower() for t in self.config.get("skip_tools", []))
+        self.skipped_notified = set()
+        self.failed_tools = set()
         self.rate_limit = self.config.get("rate_limit")
         self.threads = self.config.get("threads", 10)
         self.delay = self.config.get("delay")

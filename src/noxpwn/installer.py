@@ -197,7 +197,20 @@ def auto_install_missing(tools_list, non_interactive=False):
             ans = "y"
 
     if ans in ("", "y", "yes"):
+        has_go = check_go()
+        has_cargo = check_cargo()
+        if not has_go and any(ALL_TOOLS.get(t, {}).get("type") == "go" for t in missing):
+            warn("Go is not installed or not in PATH (https://go.dev/dl/). Skipping Go-based tool auto-installs.")
+        if not has_cargo and any(ALL_TOOLS.get(t, {}).get("type") == "cargo" for t in missing):
+            info("Cargo/Rust is not installed (https://rustup.rs/). Skipping Cargo-based tool auto-installs.")
+
         for t in missing:
+            ttype = ALL_TOOLS.get(t, {}).get("type")
+            if ttype == "go" and not has_go:
+                continue
+            if ttype == "cargo" and not has_cargo:
+                continue
+
             if install_tool(t):
                 good(f"{t} installed successfully!")
             else:

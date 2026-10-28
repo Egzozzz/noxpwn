@@ -30,15 +30,19 @@ class Phase09Directories(BasePhase):
         api_wordlist = find_api_wordlist()
 
         # ffuf — recursive directory brute-force
-        if self.tool_available("ffuf"):
+        ffuf_cmd = self.get_tool_cmd("ffuf")
+        if ffuf_cmd and not self.is_skipped("ffuf"):
             ffuf_rf = self.rate_limit_flags("ffuf")
             for host in live_hosts[:3]:
+                if "ffuf" in self.engine.failed_tools:
+                    break
                 clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                 ffuf_out = f"{self.outdir}/ffuf_{clean}.json"
                 self.run_tool(
-                    f"ffuf -u {host}/FUZZ -w {wordlist} {ffuf_rf} -mc 200,204,301,302,307,401,403,405,500,501 "
+                    f"{ffuf_cmd} -u {host}/FUZZ -w {wordlist} {ffuf_rf} -mc 200,204,301,302,307,401,403,405,500,501 "
                     f"-recursion -recursion-depth 2 -maxtime 300 -s -of json -o {ffuf_out}",
                     timeout=600,
+                    tool_name="ffuf"
                 )
                 if os.path.exists(ffuf_out):
                     try:
@@ -55,14 +59,17 @@ class Phase09Directories(BasePhase):
                         pass
 
             # Additional ffuf pass with API wordlist if available
-            if api_wordlist:
+            if api_wordlist and "ffuf" not in self.engine.failed_tools:
                 for host in live_hosts[:3]:
+                    if "ffuf" in self.engine.failed_tools:
+                        break
                     clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                     ffuf_api_out = f"{self.outdir}/ffuf_api_{clean}.json"
                     self.run_tool(
-                        f"ffuf -u {host}/FUZZ -w {api_wordlist} {ffuf_rf} -mc 200,204,301,302,307,401,403,405,500,501 "
+                        f"{ffuf_cmd} -u {host}/FUZZ -w {api_wordlist} {ffuf_rf} -mc 200,204,301,302,307,401,403,405,500,501 "
                         f"-s -of json -o {ffuf_api_out}",
                         timeout=300,
+                        tool_name="ffuf"
                     )
                     if os.path.exists(ffuf_api_out):
                         try:
@@ -76,15 +83,19 @@ class Phase09Directories(BasePhase):
                             pass
 
         # feroxbuster — deeper scan
-        if self.tool_available("feroxbuster"):
+        ferox_cmd = self.get_tool_cmd("feroxbuster")
+        if ferox_cmd and not self.is_skipped("feroxbuster"):
             ferox_rf = self.rate_limit_flags("feroxbuster")
             for host in live_hosts[:2]:
+                if "feroxbuster" in self.engine.failed_tools:
+                    break
                 clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                 ferox_out = self.outdir / f"ferox_{clean}.txt"
                 self.run_tool(
-                    f"feroxbuster -u {host} -w {wordlist} {ferox_rf} -d 3 --auto-tune "
+                    f"{ferox_cmd} -u {host} -w {wordlist} {ferox_rf} -d 3 --auto-tune "
                     f"--silent -o {ferox_out}",
                     timeout=300,
+                    tool_name="feroxbuster"
                 )
                 if ferox_out.exists():
                     fr = read_file(ferox_out)
@@ -111,13 +122,17 @@ class Phase10Params(BasePhase):
         param_results = {}
 
         # Arjun — passive + active parameter discovery
-        if self.tool_available("arjun"):
+        arjun_cmd = self.get_tool_cmd("arjun")
+        if arjun_cmd and not self.is_skipped("arjun"):
             for host in live_hosts[:5]:
+                if "arjun" in self.engine.failed_tools:
+                    break
                 clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                 outf = self.outdir / f"arjun_{clean}.json"
                 self.run_tool(
-                    f"arjun -u {host} -m GET -oJ {outf}",
+                    f"{arjun_cmd} -u {host} -m GET -oJ {outf}",
                     timeout=300,
+                    tool_name="arjun"
                 )
                 if outf.exists():
                     param_results[clean] = str(outf)
@@ -130,7 +145,8 @@ class Phase10Params(BasePhase):
                         good(f"Arjun params saved for {clean}")
 
         # x8 — hidden parameter discovery
-        if self.tool_available("x8"):
+        x8_cmd = self.get_tool_cmd("x8")
+        if x8_cmd and not self.is_skipped("x8"):
             param_wl = find_param_wordlist()
             if not param_wl:
                 # Built-in x8 wordlist or basic params
@@ -143,11 +159,14 @@ class Phase10Params(BasePhase):
                 save_to_file(param_wl, basic_params)
 
             for host in live_hosts[:3]:
+                if "x8" in self.engine.failed_tools:
+                    break
                 clean = host.replace("https://", "").replace("http://", "").split("/")[0]
                 x8f = self.outdir / f"x8_{clean}.txt"
                 self.run_tool(
-                    f"x8 -u {host.rstrip('/') + '/'} -w {param_wl} -o {x8f} --disable-progress-bar",
+                    f"{x8_cmd} -u {host.rstrip('/') + '/'} -w {param_wl} -o {x8f} --disable-progress-bar",
                     timeout=300,
+                    tool_name="x8"
                 )
                 if x8f.exists():
                     xr = read_file(x8f)

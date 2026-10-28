@@ -162,7 +162,8 @@ Options:
   --verbose             Verbose output with detailed tracebacks
   -v, --version         Show noxpwn version and exit
   --from-phase NUM      Start scanning from specific phase number (1-19)
-  --skip-tools LIST     Exclude specific tools (comma or space separated)
+  -st, --skip-tools LIST, --skip-tool LIST
+                        Exclude specific tools with alias support (e.g. -st cors nuclei or --skip-tools ffuf,arjun)
   --update              Update noxpwn to the latest version from GitHub
 ```
 
