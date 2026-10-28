@@ -343,7 +343,8 @@ class Phase17Sqli(BasePhase):
             if not self.is_skipped("sqlmap"):
                 warn("sqlmap not installed. Manual verification required:")
             for u in candidates[:5]:
-                print(f"    {c(f'sqlmap -u \"{u}\" --batch --risk=3 --level=3', 'cyan')}")
+                hint = f'sqlmap -u "{u}" --batch --risk=3 --level=3'
+                print(f"    {c(hint, 'cyan')}")
 
         print(f"\n  {c('Top SQLi candidates:', 'bold')}")
         for u in candidates[:10]:
